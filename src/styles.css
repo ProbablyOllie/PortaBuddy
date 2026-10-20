@@ -12,6 +12,9 @@
   --slot-line: #2a3140;
   --device: #3a4356;
   --device-hi: #4b5670;
+  --library-w: 250px;
+  --inspector-w: 320px;
+  --strip-w: 30px;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 14px;
   color: var(--text);
@@ -202,8 +205,77 @@ textarea:focus {
 .workspace {
   flex: 1;
   display: grid;
-  grid-template-columns: 250px 1fr 320px;
+  grid-template-columns: var(--library-w) 1fr var(--inspector-w);
   min-height: 0;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.collapse-btn {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 5px;
+  width: 26px;
+  height: 24px;
+  padding: 0;
+  cursor: pointer;
+  color: var(--muted);
+  flex: none;
+  line-height: 1;
+}
+
+.collapse-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.tabs .collapse-btn {
+  flex: none;
+  align-self: center;
+  margin: 0 4px 0 8px;
+  border-bottom: 1px solid var(--border);
+  padding: 0;
+}
+
+.panel-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border: 0;
+  background: var(--panel);
+  cursor: pointer;
+  color: var(--muted);
+  min-height: 0;
+}
+
+.panel-strip.left {
+  border-right: 1px solid var(--border);
+}
+
+.panel-strip.right {
+  border-left: 1px solid var(--border);
+}
+
+.panel-strip:hover {
+  color: var(--accent);
+  background: #f8fbff;
+}
+
+.strip-label {
+  writing-mode: vertical-rl;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.panel-strip.left .strip-label {
+  transform: rotate(180deg);
 }
 
 .library,
@@ -417,6 +489,25 @@ textarea:focus {
   font-size: 12px;
 }
 
+.rack-faces {
+  display: flex;
+  gap: 22px;
+}
+
+.face-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  text-align: center;
+  padding: 0 0 6px;
+}
+
+.face-rear .face-label {
+  color: #fbbf24;
+}
+
 .rack-body {
   display: flex;
 }
@@ -475,6 +566,16 @@ textarea:focus {
   border-radius: 2px;
   color: #e5e7eb;
   cursor: default;
+}
+
+/* The back of a full-depth device, seen from the other side of the rack. */
+.device.back {
+  background: linear-gradient(180deg, #333b4b, #2a3140);
+  border-left-style: dashed;
+}
+
+.device.back .device-name {
+  color: #cbd2de;
 }
 
 .device.selected {
@@ -665,6 +766,16 @@ textarea:focus {
   stroke-width: 7;
 }
 
+.cable.stub .cable-line {
+  stroke-dasharray: 3 2;
+}
+
+.cable-stub-end {
+  fill: #151a24;
+  stroke-width: 2;
+  pointer-events: none;
+}
+
 .cable.temp .cable-line {
   stroke-dasharray: 6 4;
 }
@@ -735,6 +846,22 @@ textarea:focus {
   letter-spacing: 0.06em;
   color: var(--muted);
   font-weight: 700;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.modal .check {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 12px 0 4px;
+  line-height: 1.4;
 }
 
 .row-buttons {
@@ -983,7 +1110,8 @@ textarea:focus {
 }
 
 @media (max-width: 1100px) {
-  .workspace {
-    grid-template-columns: 210px 1fr 280px;
+  :root {
+    --library-w: 210px;
+    --inspector-w: 280px;
   }
 }

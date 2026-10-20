@@ -1,14 +1,16 @@
 import { memo, type PointerEvent } from 'react';
 import { endDrag, startDrag } from '../lib/dnd';
 import { GROUP_GAP, HANDLE_W, U_PX, portSize } from '../lib/layout';
-import { groupColumns, portCell } from '../lib/project';
+import { groupColumns, groupsOn, portCell } from '../lib/project';
 import { PORT_TYPE_LABELS } from '../lib/templates';
-import type { Cable, Device } from '../lib/types';
+import type { Cable, Device, Face } from '../lib/types';
 import { useStore } from '../store';
 import { beginWiring, clickSuppressed } from '../wiring';
 
 interface Props {
   device: Device;
+  /** Side of the rack being drawn. */
+  face: Face;
   rackHeightU: number;
   /** portId -> cable, for every connected port in the project. */
   cables: Map<string, Cable>;
@@ -18,9 +20,12 @@ interface Props {
   selectedCableId: string | null;
 }
 
-export const DeviceView = memo(function DeviceView({ device, rackHeightU, cables, peers, selected, selectedCableId }: Props) {
+export const DeviceView = memo(function DeviceView({ device, face, rackHeightU, cables, peers, selected, selectedCableId }: Props) {
   const select = useStore((s) => s.select);
-  const { w, h } = portSize(device);
+  const shown = groupsOn(device, face);
+  const { w, h } = portSize(device, shown.map((x) => x.group));
+  // Seeing the back of a full-depth device (e.g. a server's rear from the rear of the rack).
+  const backSide = device.facing !== face;
   const top = (rackHeightU - (device.positionU + device.heightU - 1)) * U_PX;
   const showNumbers = w >= 15 && h >= 12;
 
@@ -33,7 +38,7 @@ export const DeviceView = memo(function DeviceView({ device, rackHeightU, cables
 
   return (
     <div
-      className={`device cat-${device.category}${selected ? ' selected' : ''}`}
+      className={`device cat-${device.category}${selected ? ' selected' : ''}${backSide ? ' back' : ''}${device.fullDepth ? '' : ' half'}`}
       style={{ top, height: device.heightU * U_PX }}
       onClick={(e) => {
         e.stopPropagation();
@@ -44,19 +49,32 @@ export const DeviceView = memo(function DeviceView({ device, rackHeightU, cables
         className="device-handle"
         style={{ width: HANDLE_W }}
         draggable
-        title="Drag to move this device"
+        title={`Drag to move this device${backSide ? ' (rear of device)' : ''}`}
         onDragStart={(e) => {
           const rect = e.currentTarget.getBoundingClientRect();
           const grabOffsetU = Math.floor(((e.clientY - rect.top) / rect.height) * device.heightU);
-          startDrag(e, { kind: 'device', deviceId: device.id, heightU: device.heightU, grabOffsetU });
+          startDrag(e, {
+            kind: 'device',
+            deviceId: device.id,
+            heightU: device.heightU,
+            fullDepth: device.fullDepth,
+            grabOffsetU,
+            facing: device.facing,
+            fromFace: face,
+          });
         }}
         onDragEnd={endDrag}
       >
         <span className="device-name">{device.name}</span>
-        {device.heightU > 1 || device.name !== device.model ? <span className="device-model">{device.model}</span> : null}
+        {device.heightU > 1 || device.name !== device.model || backSide ? (
+          <span className="device-model">
+            {backSide ? 'Rear · ' : ''}
+            {device.model}
+          </span>
+        ) : null}
       </div>
       <div className="device-ports" style={{ gap: GROUP_GAP }}>
-        {device.portGroups.map((group, gi) => {
+        {shown.map(({ group, index: gi }) => {
           if (!group.ports.length) return null;
           const cols = groupColumns(group);
           return (

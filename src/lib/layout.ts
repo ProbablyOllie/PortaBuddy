@@ -1,5 +1,5 @@
 import { groupColumns } from './project';
-import type { Device } from './types';
+import type { Device, PortGroup } from './types';
 
 /** Height of one rack unit in CSS pixels (before zoom). */
 export const U_PX = 40;
@@ -9,9 +9,9 @@ export const FACE_W = 640;
 export const HANDLE_W = 112;
 export const GROUP_GAP = 8;
 
-/** Port cell size so every port on the device fits on its face. */
-export function portSize(device: Device): { w: number; h: number } {
-  const groups = device.portGroups.filter((g) => g.ports.length);
+/** Port cell size so every port shown on this side of the device fits. */
+export function portSize(device: Device, shown: PortGroup[]): { w: number; h: number } {
+  const groups = shown.filter((g) => g.ports.length);
   const cols = groups.reduce((n, g) => n + groupColumns(g), 0);
   const rows = Math.max(1, ...groups.map((g) => g.rows));
   const availW = FACE_W - HANDLE_W - 16 - GROUP_GAP * Math.max(0, groups.length - 1);

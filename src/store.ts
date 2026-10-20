@@ -1,10 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { canPlace, createDevice, emptyProject, findPort, nextCableLabel, uid } from './lib/project';
+import { canPlace, createDevice, emptyProject, findPort, nextCableLabel, parseProject, uid } from './lib/project';
 import { BUILTIN_TEMPLATES, defaultCableFor } from './lib/templates';
-import type { Cable, Device, DeviceTemplate, PortRef, PortType, Project, Rack, Selection } from './lib/types';
+import type { Cable, Device, DeviceTemplate, Face, PortRef, PortType, Project, Rack, Selection } from './lib/types';
 
 export type CableMode = 'show' | 'dim' | 'hide';
+/** Which sides of the racks are drawn. */
+export type ViewMode = Face | 'both';
 
 const HISTORY_LIMIT = 100;
 
@@ -15,6 +17,9 @@ interface State {
   selection: Selection;
   zoom: number;
   cableMode: CableMode;
+  view: ViewMode;
+  libraryOpen: boolean;
+  inspectorOpen: boolean;
   /** Last cable style used, so consecutive patch leads keep the same look. */
   lastCable: Pick<Cable, 'type' | 'color'> | null;
   message: string | null;
@@ -22,6 +27,8 @@ interface State {
   select: (s: Selection) => void;
   setZoom: (z: number) => void;
   setCableMode: (m: CableMode) => void;
+  setView: (v: ViewMode) => void;
+  togglePanel: (panel: 'library' | 'inspector') => void;
   flash: (msg: string | null) => void;
   undo: () => void;
   redo: () => void;
@@ -35,8 +42,10 @@ interface State {
   removeRack: (id: string) => void;
   moveRack: (id: string, dir: -1 | 1) => void;
 
-  placeDevice: (templateId: string, rackId: string, positionU: number) => boolean;
-  moveDevice: (deviceId: string, rackId: string, positionU: number) => boolean;
+  placeDevice: (templateId: string, rackId: string, positionU: number, facing?: Face) => boolean;
+  /** Move a device; `facing` turns it to face the other side of the rack. */
+  moveDevice: (deviceId: string, rackId: string, positionU: number, facing?: Face) => boolean;
+  setDeviceMount: (id: string, patch: Partial<Pick<Device, 'facing' | 'fullDepth'>>) => boolean;
   updateDevice: (id: string, patch: Partial<Pick<Device, 'name' | 'notes'>>) => void;
   renamePort: (deviceId: string, portId: string, name: string) => void;
   removeDevice: (id: string) => void;
@@ -85,12 +94,18 @@ export const useStore = create<State>()(
         selection: null,
         zoom: 1,
         cableMode: 'show',
+        view: 'front',
+        libraryOpen: true,
+        inspectorOpen: true,
         lastCable: null,
         message: null,
 
         select: (selection) => set({ selection }),
         setZoom: (zoom) => set({ zoom: Math.min(2, Math.max(0.4, Math.round(zoom * 100) / 100)) }),
         setCableMode: (cableMode) => set({ cableMode }),
+        setView: (view) => set({ view }),
+        togglePanel: (panel) =>
+          panel === 'library' ? set({ libraryOpen: !get().libraryOpen }) : set({ inspectorOpen: !get().inspectorOpen }),
         flash: (message) => set({ message }),
 
         undo: () => {
@@ -149,22 +164,41 @@ export const useStore = create<State>()(
             return { ...p, racks };
           }),
 
-        placeDevice: (templateId, rackId, positionU) => {
+        placeDevice: (templateId, rackId, positionU, facing) => {
           const p = get().project;
           const t = allTemplates(p).find((x) => x.id === templateId);
-          if (!t || !canPlace(p, rackId, t.heightU, positionU)) return false;
+          if (!t) return false;
+          const side = facing ?? t.defaultFacing ?? 'front';
+          if (!canPlace(p, rackId, { heightU: t.heightU, positionU, facing: side, fullDepth: t.fullDepth })) return false;
           const sameModel = p.devices.filter((d) => d.model === t.name).length;
-          const device = createDevice(t, rackId, positionU, sameModel ? `${t.name} ${sameModel + 1}` : t.name);
+          const device = createDevice(t, rackId, positionU, sameModel ? `${t.name} ${sameModel + 1}` : t.name, side);
           commit((pr) => ({ ...pr, devices: [...pr.devices, device] }));
           set({ selection: { kind: 'device', id: device.id } });
           return true;
         },
-        moveDevice: (deviceId, rackId, positionU) => {
+        moveDevice: (deviceId, rackId, positionU, facing) => {
           const p = get().project;
           const d = p.devices.find((x) => x.id === deviceId);
-          if (!d || !canPlace(p, rackId, d.heightU, positionU, deviceId)) return false;
-          if (d.rackId === rackId && d.positionU === positionU) return true;
-          commit((pr) => ({ ...pr, devices: pr.devices.map((x) => (x.id === deviceId ? { ...x, rackId, positionU } : x)) }));
+          if (!d) return false;
+          const side = facing ?? d.facing;
+          if (!canPlace(p, rackId, { heightU: d.heightU, positionU, facing: side, fullDepth: d.fullDepth }, deviceId)) return false;
+          if (d.rackId === rackId && d.positionU === positionU && d.facing === side) return true;
+          commit((pr) => ({
+            ...pr,
+            devices: pr.devices.map((x) => (x.id === deviceId ? { ...x, rackId, positionU, facing: side } : x)),
+          }));
+          return true;
+        },
+        setDeviceMount: (id, patch) => {
+          const p = get().project;
+          const d = p.devices.find((x) => x.id === id);
+          if (!d) return false;
+          const next = { ...d, ...patch };
+          if (!canPlace(p, d.rackId, next, id)) {
+            get().flash('Another device is in the way on that side of the rack.');
+            return false;
+          }
+          commit((pr) => ({ ...pr, devices: pr.devices.map((x) => (x.id === id ? next : x)) }));
           return true;
         },
         updateDevice: (id, patch) =>
@@ -203,7 +237,7 @@ export const useStore = create<State>()(
           const rack = p.racks.find((r) => r.id === d.rackId)!;
           const candidates = [d.positionU + d.heightU, d.positionU - d.heightU];
           for (let pos = rack.heightU - d.heightU + 1; pos >= 1; pos--) candidates.push(pos);
-          const pos = candidates.find((c) => canPlace(p, d.rackId, d.heightU, c));
+          const pos = candidates.find((c) => canPlace(p, d.rackId, { ...d, positionU: c }));
           if (pos === undefined) {
             get().flash('No free space in this rack for a copy.');
             return;
@@ -295,8 +329,26 @@ export const useStore = create<State>()(
     },
     {
       name: 'portabuddy-project',
-      version: 1,
-      partialize: (s) => ({ project: s.project, zoom: s.zoom, cableMode: s.cableMode }),
+      version: 2,
+      partialize: (s) => ({
+        project: s.project,
+        zoom: s.zoom,
+        cableMode: s.cableMode,
+        view: s.view,
+        libraryOpen: s.libraryOpen,
+        inspectorOpen: s.inspectorOpen,
+      }),
+      migrate: (persisted, version) => {
+        const state = persisted as Pick<State, 'project' | 'zoom' | 'cableMode' | 'view' | 'libraryOpen' | 'inspectorOpen'>;
+        if (version < 2 && state.project) {
+          try {
+            return { ...state, project: parseProject(state.project) };
+          } catch {
+            return { ...state, project: emptyProject() };
+          }
+        }
+        return state;
+      },
     },
   ),
 );

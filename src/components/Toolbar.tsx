@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { buildWorkbook, cableSheet, downloadBlob, portMapSheet, safeFileName, toCsv } from '../lib/export';
 import { parseProject } from '../lib/project';
-import { useStore, type CableMode } from '../store';
+import { useStore, type CableMode, type ViewMode } from '../store';
 
 export function Toolbar() {
   const project = useStore((s) => s.project);
   const zoom = useStore((s) => s.zoom);
   const cableMode = useStore((s) => s.cableMode);
+  const view = useStore((s) => s.view);
   const canUndo = useStore((s) => s.past.length > 0);
   const canRedo = useStore((s) => s.future.length > 0);
-  const { setProjectName, setZoom, setCableMode, undo, redo, addRack, newProject, loadProject, flash } = useStore.getState();
+  const { setProjectName, setZoom, setCableMode, setView, undo, redo, addRack, newProject, loadProject, flash } = useStore.getState();
   const fileRef = useRef<HTMLInputElement>(null);
   const [menu, setMenu] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -119,6 +120,17 @@ export function Toolbar() {
         <button className="btn" onClick={addRack}>
           + Rack
         </button>
+      </div>
+
+      <div className="tb-group">
+        <span className="tb-label">View</span>
+        <div className="seg">
+          {(['front', 'rear', 'both'] as ViewMode[]).map((v) => (
+            <button key={v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>
+              {v[0].toUpperCase() + v.slice(1)}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="tb-group">

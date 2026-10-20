@@ -27,37 +27,47 @@ describe('sheets', () => {
     const s = cableSheet(sample());
     expect(s.rows).toHaveLength(2);
     // PP-A1 sits above core-sw1, so it is listed as end A.
-    expect(s.rows[0].slice(0, 9)).toEqual(['C001', 'Cat6', 'Blue', '0.5', 'Rack A', 'U42', 'PP-A1', '1', 'RJ45']);
-    expect(s.rows[0].slice(9, 14)).toEqual(['Rack A', 'U41', 'core-sw1', 'Gi1', 'RJ45']);
-    // Rack A comes before Rack B.
-    expect(s.rows[1][6]).toBe('core-sw1');
-    expect(s.rows[1][11]).toBe('esx01');
+    expect(s.rows[0].slice(0, 10)).toEqual(['C001', 'Cat6', 'Blue', '0.5', 'Rack A', 'U42', 'Front', 'PP-A1', '1', 'RJ45']);
+    expect(s.rows[0].slice(10, 16)).toEqual(['Rack A', 'U41', 'Front', 'core-sw1', 'Gi1', 'RJ45']);
+    // Rack A comes before Rack B; server NICs are on the rear.
+    expect(s.rows[1][7]).toBe('core-sw1');
+    expect(s.rows[1].slice(10, 14)).toEqual(['Rack B', 'U10', 'Rear', 'esx01']);
   });
 
   it('lists every port with its status', () => {
     const s = portMapSheet(sample());
-    expect(s.rows).toHaveLength(24 + 52 + 11);
-    const gi1 = s.rows.find((r) => r[2] === 'core-sw1' && r[3] === 'Gi1')!;
-    expect(gi1[6]).toBe('Connected');
-    expect(gi1[7]).toBe('C001');
-    expect(gi1[9]).toBe('Rack A / U42 PP-A1 / 1');
-    expect(s.rows.find((r) => r[2] === 'core-sw1' && r[3] === 'Gi3')![6]).toBe('Free');
+    expect(s.rows).toHaveLength(24 + 54 + 11);
+    const gi1 = s.rows.find((r) => r[3] === 'core-sw1' && r[4] === 'Gi1')!;
+    expect(gi1[2]).toBe('Front');
+    expect(gi1[7]).toBe('Connected');
+    expect(gi1[8]).toBe('C001');
+    expect(gi1[10]).toBe('Rack A / U42 PP-A1 / 1');
+    expect(s.rows.find((r) => r[3] === 'core-sw1' && r[4] === 'Gi3')![7]).toBe('Free');
+    expect(s.rows.find((r) => r[3] === 'core-sw1' && r[4] === 'Gi2')![10]).toBe('Rack B / U10 esx01 / eth0 (rear)');
+    expect(s.rows.find((r) => r[3] === 'core-sw1' && r[4] === 'PSU1')![2]).toBe('Rear');
   });
 
   it('summarises devices', () => {
     const s = deviceSheet(sample());
-    expect(s.rows.map((r) => r[4])).toEqual(['PP-A1', 'core-sw1', 'esx01']);
+    expect(s.rows.map((r) => r[6])).toEqual(['PP-A1', 'core-sw1', 'esx01']);
     expect(s.rows[2][2]).toBe('U10-U11');
-    expect(s.rows[1][8]).toBe(2);
+    expect(s.rows[0].slice(4, 6)).toEqual(['Front', 'Half']);
+    expect(s.rows[1][10]).toBe(2);
   });
 
   it('draws rack elevations with merged multi-U devices', () => {
     const e = elevationGrid(sample());
-    expect(e.header).toEqual(['U', 'Rack A', 'Rack B']);
-    expect(e.rows[0]).toEqual(['U42', 'PP-A1 (Patch panel 24-port)', '—']);
+    expect(e.header).toEqual(['U', 'Rack A Front', 'Rack A Rear', 'Rack B Front', 'Rack B Rear']);
+    // The half-depth patch panel only shows on the front; Rack B is shorter.
+    expect(e.rows[0]).toEqual(['U42', 'PP-A1 (Patch panel 24-port)', '', '—', '—']);
+    expect(e.rows[1]).toEqual(['U41', 'core-sw1 (Switch 48-port)', 'core-sw1 (Switch 48-port) — rear', '—', '—']);
     const u11 = e.rows.findIndex((r) => r[0] === 'U11');
-    expect(e.rows[u11][2]).toContain('esx01');
-    expect(e.merges).toEqual([{ col: 2, fromRow: u11, toRow: u11 + 1 }]);
+    expect(e.rows[u11][3]).toBe('esx01 (Server 2U)');
+    expect(e.rows[u11][4]).toBe('esx01 (Server 2U) — rear');
+    expect(e.merges).toEqual([
+      { col: 3, fromRow: u11, toRow: u11 + 1 },
+      { col: 4, fromRow: u11, toRow: u11 + 1 },
+    ]);
   });
 
   it('escapes CSV', () => {
@@ -75,6 +85,6 @@ describe('buildWorkbook', () => {
     expect(wb.worksheets.map((w) => w.name)).toEqual(['Summary', 'Cable Schedule', 'Port Map', 'Devices', 'Rack Elevations']);
     const cables = wb.getWorksheet('Cable Schedule')!;
     expect(cables.getCell('A2').value).toBe('C001');
-    expect(cables.getCell('G2').value).toBe('PP-A1');
+    expect(cables.getCell('H2').value).toBe('PP-A1');
   });
 });
