@@ -16,6 +16,8 @@ export function Library() {
   const placeDevice = useStore((s) => s.placeDevice);
   const removeTemplate = useStore((s) => s.removeTemplate);
   const flash = useStore((s) => s.flash);
+  const view = useStore((s) => s.view);
+  const togglePanel = useStore((s) => s.togglePanel);
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<DeviceTemplate | 'new' | null>(null);
 
@@ -36,14 +38,20 @@ export function Library() {
     if (selection?.kind === 'rack') rackId = selection.id;
     if (selection?.kind === 'device') rackId = project.devices.find((d) => d.id === selection.id)?.rackId ?? rackId;
     if (!rackId) return flash('Add a rack first.');
-    const pos = firstFreePosition(project, rackId, t.heightU);
+    const facing = view === 'both' ? (t.defaultFacing ?? 'front') : view;
+    const pos = firstFreePosition(project, rackId, { heightU: t.heightU, facing, fullDepth: t.fullDepth });
     if (pos === null) return flash('No free space in that rack.');
-    placeDevice(t.id, rackId, pos);
+    placeDevice(t.id, rackId, pos, facing);
   };
 
   return (
     <aside className="library">
-      <div className="panel-title">Device library</div>
+      <div className="panel-head">
+        <div className="panel-title">Device library</div>
+        <button className="collapse-btn" title="Hide panel ([)" onClick={() => togglePanel('library')}>
+          «
+        </button>
+      </div>
       <input className="search" placeholder="Search devices…" value={query} onChange={(e) => setQuery(e.target.value)} />
       <p className="hint">Drag a device into a rack. Double-click to drop it in the next free slot.</p>
       <div className="library-list">
@@ -56,7 +64,7 @@ export function Library() {
                 className={`template cat-${t.category}`}
                 draggable
                 tabIndex={0}
-                onDragStart={(e) => startDrag(e, { kind: 'template', templateId: t.id, heightU: t.heightU })}
+                onDragStart={(e) => startDrag(e, { kind: 'template', templateId: t.id, heightU: t.heightU, fullDepth: t.fullDepth })}
                 onDragEnd={endDrag}
                 onDoubleClick={() => quickAdd(t)}
                 onKeyDown={(e) => e.key === 'Enter' && quickAdd(t)}
@@ -66,7 +74,7 @@ export function Library() {
                 <div className="template-text">
                   <div className="template-name">{t.name}</div>
                   <div className="template-meta">
-                    {t.heightU}U · {portCount(t)} ports
+                    {t.heightU}U · {t.fullDepth ? 'full' : 'half'} depth · {portCount(t)} ports
                   </div>
                 </div>
                 {t.custom ? (

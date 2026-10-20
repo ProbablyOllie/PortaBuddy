@@ -8,11 +8,17 @@ dragging between ports, and export the result as an Excel workbook for your docu
 ## Features
 
 - **Racks** – any number of racks (1–60U), side by side, with names and locations.
+- **Front and rear views** – switch between *Front*, *Rear* or *Both* sides of every rack. Ports
+  live on the side they really are (server NICs and PSUs on the rear, switch ports on the front).
+  Full-depth devices show on both sides; half-depth kit such as patch panels and PDUs only takes up
+  the side it's mounted on, so two can share a U back to back. Devices can be turned round
+  (mounted facing the rear), and cables run between the two sides in *Both* view — in a single-side
+  view, a cable going round the back shows as a short stub.
 - **Device library** – switches (8/16/24/48-port, PoE, SFP+ aggregation, QSFP spine), patch panels
   (12/24/48-port copper, LC/SC fibre), 1U/2U/4U servers, routers, firewalls, NAS/SAN, PDUs, UPS,
   cable managers and blanking panels.
-- **Custom device types** – define your own hardware: height, and any number of port groups
-  (type, count, naming prefix, start number, rows, numbering order).
+- **Custom device types** – define your own hardware: height, depth, and any number of port groups
+  (side, type, count, naming prefix, start number, rows, numbering order).
 - **Drag & drop** – drag devices from the library into a rack slot (with a live fit/collision
   preview), and drag a device by its label to move it within or between racks.
 - **Cabling** – press on a port and drag to any other port (including in another rack) to run a
@@ -22,10 +28,12 @@ dragging between ports, and export the result as an Excel workbook for your docu
   DAC, AOC, power, console), colour, length and notes. Rename individual ports (e.g. `Gi1/0/1`).
 - **Export**
   - **Excel (.xlsx)** with sheets: *Summary*, *Cable Schedule* (A/B ends with rack, U, device,
-    port), *Port Map* (every port, free/connected, far end), *Devices*, and *Rack Elevations*.
+    port, side), *Port Map* (every port, free/connected, far end), *Devices* (incl. facing and
+    depth), and *Rack Elevations* (front and rear of each rack).
   - **CSV** cable schedule or port map.
 - **Save / Open** projects as `.portabuddy.json` files; work is also autosaved in the browser.
-- Undo/redo, zoom, and show/dim/hide cables for busy racks.
+- Undo/redo, zoom, show/dim/hide cables for busy racks, and collapsible side panels for more
+  room.
 
 ## Getting started
 
@@ -54,6 +62,7 @@ GitHub Pages. To enable it, set **Settings → Pages → Build and deployment �
 | Ctrl/⌘ + Z | Undo |
 | Ctrl/⌘ + Shift + Z, Ctrl + Y | Redo |
 | Esc | Cancel a cable drag / clear selection |
+| [ / ] | Hide or show the device library / properties panel |
 
 ## Project layout
 

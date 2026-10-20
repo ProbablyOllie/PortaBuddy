@@ -1,15 +1,19 @@
 import { useMemo, useState } from 'react';
-import { cableIndex, describePort, findPort, spanOf } from '../lib/project';
+import { cableIndex, describePort, findPort, groupRackFace, spanOf } from '../lib/project';
 import { CABLE_COLORS, CABLE_TYPES, PORT_TYPE_LABELS } from '../lib/templates';
-import type { CableType, PortRef } from '../lib/types';
+import type { CableType, Face, PortRef } from '../lib/types';
 import { useStore } from '../store';
 
 export function Inspector() {
   const [tab, setTab] = useState<'props' | 'cables'>('props');
   const count = useStore((s) => s.project.cables.length);
+  const togglePanel = useStore((s) => s.togglePanel);
   return (
     <aside className="inspector">
       <div className="tabs">
+        <button className="collapse-btn" title="Hide panel (])" onClick={() => togglePanel('inspector')}>
+          »
+        </button>
         <button className={tab === 'props' ? 'on' : ''} onClick={() => setTab('props')}>
           Properties
         </button>
@@ -51,6 +55,10 @@ function Overview() {
         <li>Drag devices from the library on the left into a rack. Drag a device by its label to move it.</li>
         <li>Press on a port and drag to another port to run a cable between them — across racks too.</li>
         <li>Drag the end of an existing cable to a different port to re-patch it.</li>
+        <li>
+          Switch between <b>Front</b>, <b>Rear</b> and <b>Both</b> views in the toolbar. Server NICs and power supplies are on the rear;
+          use <b>Both</b> to run cables from front to rear.
+        </li>
         <li>Click a cable, device or rack header to edit its details here.</li>
         <li>
           Use <b>Export</b> to download an Excel workbook with the cable schedule, port map, device list and rack elevations.
@@ -59,7 +67,9 @@ function Overview() {
       <p className="hint">
         Your work is saved automatically in this browser. Use <b>Save</b> to keep a project file you can share or re-open elsewhere.
       </p>
-      <p className="hint">Shortcuts: Delete removes the selection, Ctrl+Z / Ctrl+Shift+Z undo and redo, Esc cancels.</p>
+      <p className="hint">
+        Shortcuts: Delete removes the selection, Ctrl+Z / Ctrl+Shift+Z undo and redo, Esc cancels, [ and ] hide or show the side panels.
+      </p>
     </div>
   );
 }
@@ -140,6 +150,7 @@ function DeviceProps({ id }: { id: string }) {
   const updateDevice = useStore((s) => s.updateDevice);
   const renamePort = useStore((s) => s.renamePort);
   const removeDevice = useStore((s) => s.removeDevice);
+  const setDeviceMount = useStore((s) => s.setDeviceMount);
   const duplicateDevice = useStore((s) => s.duplicateDevice);
   const select = useStore((s) => s.select);
   const index = useMemo(() => cableIndex(project.cables), [project.cables]);
@@ -160,6 +171,22 @@ function DeviceProps({ id }: { id: string }) {
       <p className="hint">
         {device.model} · {rack?.name} · U{b === t ? b : `${b}–${t}`} · {used}/{allPorts.length} ports used
       </p>
+      <div className="form-row">
+        <label>
+          Mounted facing
+          <select value={device.facing} onChange={(e) => setDeviceMount(id, { facing: e.target.value as Face })}>
+            <option value="front">Front of rack</option>
+            <option value="rear">Rear of rack</option>
+          </select>
+        </label>
+        <label>
+          Depth
+          <select value={device.fullDepth ? 'full' : 'half'} onChange={(e) => setDeviceMount(id, { fullDepth: e.target.value === 'full' })}>
+            <option value="full">Full (both sides)</option>
+            <option value="half">Half (one side)</option>
+          </select>
+        </label>
+      </div>
       <label>
         Notes
         <textarea rows={2} value={device.notes} placeholder="Serial, asset tag, IP…" onChange={(e) => updateDevice(id, { notes: e.target.value })} />
@@ -181,7 +208,10 @@ function DeviceProps({ id }: { id: string }) {
         g.ports.length ? (
           <div key={gi} className="port-table">
             <h4>
-              {g.label} <span className="muted">({PORT_TYPE_LABELS[g.type]})</span>
+              {g.label}{' '}
+              <span className="muted">
+                ({PORT_TYPE_LABELS[g.type]} · {groupRackFace(device, g) === 'front' ? 'front' : 'rear'} of rack)
+              </span>
             </h4>
             <table>
               <tbody>
@@ -226,6 +256,7 @@ function Endpoint({ label, refr }: { label: string; refr: PortRef }) {
       <button className="link" onClick={() => select({ kind: 'device', id: info.device.id })}>
         {info.rack?.name} · U{info.device.positionU} · {info.device.name}
       </button>
+      <div className="muted">{info.face === 'front' ? 'Front' : 'Rear'} of rack</div>
       <div>
         Port <b>{info.port.name || info.group.label}</b> <span className="muted">({PORT_TYPE_LABELS[info.type]})</span>
       </div>

@@ -19,6 +19,7 @@ export function Canvas() {
   const project = useStore((s) => s.project);
   const zoom = useStore((s) => s.zoom);
   const cableMode = useStore((s) => s.cableMode);
+  const view = useStore((s) => s.view);
   const selection = useStore((s) => s.selection);
   const select = useStore((s) => s.select);
   const addRack = useStore((s) => s.addRack);
@@ -61,7 +62,7 @@ export function Canvas() {
     setSize({ w: Math.ceil(cr.right - o.x), h: Math.ceil(cr.bottom - o.y) });
   }, [origin]);
 
-  useLayoutEffect(measure, [project, zoom, measure]);
+  useLayoutEffect(measure, [project, zoom, view, measure]);
 
   useEffect(() => {
     const ro = new ResizeObserver(() => measure());
@@ -153,8 +154,9 @@ export function Canvas() {
     const o = origin();
     const moving = wiring.cableId ? project.cables.find((c) => c.id === wiring.cableId) : undefined;
     const fixed = moving ? (moving.a.portId === wiring.from.portId ? moving.b : moving.a) : wiring.from;
-    const a = positions.get(fixed.portId);
-    if (a) temp = { a, b: { x: wiring.x - o.x, y: wiring.y - o.y }, color: moving?.color ?? '#f59e0b' };
+    // When the fixed end is on the hidden side, start the lead where the drag began.
+    const a = positions.get(fixed.portId) ?? { x: wiring.startX - o.x, y: wiring.startY - o.y };
+    temp = { a, b: { x: wiring.x - o.x, y: wiring.y - o.y }, color: moving?.color ?? '#f59e0b' };
   }
 
   return (
@@ -176,16 +178,20 @@ export function Canvas() {
       <svg className={`cable-layer mode-${cableMode}${wiring ? ' wiring' : ''}`} width={size.w} height={size.h}>
         {ordered.map((c) => {
           if (wiring?.moved && wiring.cableId === c.id) return null;
-          const a = positions.get(c.a.portId);
-          const b = positions.get(c.b.portId);
-          if (!a || !b) return null;
+          const pa = positions.get(c.a.portId);
+          const pb = positions.get(c.b.portId);
+          if (!pa && !pb) return null;
           const sel = c.id === selectedCableId;
           if (cableMode === 'hide' && !sel) return null;
-          const d = cablePath(a, b);
+          // One end is on the side of the rack that isn't shown: draw a short lead disappearing behind.
+          const stub = !pa || !pb;
+          const a = (pa ?? pb)!;
+          const b = stub ? { x: a.x + 10, y: a.y + 22 } : pb!;
+          const d = stub ? `M${a.x},${a.y} Q${a.x},${b.y} ${b.x},${b.y}` : cablePath(a, b);
           return (
             <g
               key={c.id}
-              className={`cable${sel ? ' sel' : ''}`}
+              className={`cable${sel ? ' sel' : ''}${stub ? ' stub' : ''}`}
               onPointerDown={(e) => {
                 // Cable ends sit on top of their ports: pressing there picks up the cable end.
                 const el = e.button === 0 ? portUnder(e.clientX, e.clientY) : null;
@@ -199,12 +205,16 @@ export function Canvas() {
                 if (!clickSuppressed()) select({ kind: 'cable', id: c.id });
               }}
             >
-              <title>{`${c.label} · ${c.type}\n${describePort(project, c.a)}\n→ ${describePort(project, c.b)}`}</title>
+              <title>{`${c.label} · ${c.type}\n${describePort(project, c.a)}\n→ ${describePort(project, c.b)}${stub ? '\n(other end is on the other side of the rack)' : ''}`}</title>
               <path className="cable-hit" d={d} />
               <path className="cable-outline" d={d} />
               <path className="cable-line" d={d} stroke={c.color} />
               <circle className="cable-end" cx={a.x} cy={a.y} r={3} fill={c.color} />
-              <circle className="cable-end" cx={b.x} cy={b.y} r={3} fill={c.color} />
+              {stub ? (
+                <circle className="cable-stub-end" cx={b.x} cy={b.y} r={3.5} stroke={c.color} />
+              ) : (
+                <circle className="cable-end" cx={b.x} cy={b.y} r={3} fill={c.color} />
+              )}
             </g>
           );
         })}

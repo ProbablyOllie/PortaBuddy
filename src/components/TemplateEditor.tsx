@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { uid } from '../lib/project';
 import { CATEGORY_LABELS, PORT_TYPE_LABELS } from '../lib/templates';
-import type { DeviceCategory, DeviceTemplate, PortGroupSpec, PortType } from '../lib/types';
+import type { DeviceCategory, DeviceTemplate, Face, PortGroupSpec, PortType } from '../lib/types';
 import { useStore } from '../store';
 
 interface Props {
@@ -9,7 +9,7 @@ interface Props {
   onClose: () => void;
 }
 
-const blankGroup = (): PortGroupSpec => ({ label: 'Ports', prefix: '', count: 24, start: 1, type: 'rj45', rows: 1, numbering: 'zigzag' });
+const blankGroup = (): PortGroupSpec => ({ label: 'Ports', prefix: '', count: 24, start: 1, type: 'rj45', rows: 1, numbering: 'zigzag', face: 'front' });
 
 export function TemplateEditor({ initial, onClose }: Props) {
   const saveTemplate = useStore((s) => s.saveTemplate);
@@ -21,6 +21,7 @@ export function TemplateEditor({ initial, onClose }: Props) {
         category: 'switch',
         heightU: 1,
         portGroups: [blankGroup()],
+        fullDepth: true,
         custom: true,
       },
   );
@@ -54,6 +55,11 @@ export function TemplateEditor({ initial, onClose }: Props) {
             <input type="number" min={1} max={20} value={t.heightU} onChange={(e) => setT({ ...t, heightU: num(e.target.value, 1, 20) })} />
           </label>
         </div>
+        <label className="check">
+          <input type="checkbox" checked={t.fullDepth} onChange={(e) => setT({ ...t, fullDepth: e.target.checked })} />
+          Full depth — fills the rack front to back and shows on both sides. Untick for shallow kit like patch panels, which only take up the
+          side they're mounted on.
+        </label>
 
         <h4>Port groups</h4>
         <p className="hint">
@@ -64,6 +70,7 @@ export function TemplateEditor({ initial, onClose }: Props) {
           <thead>
             <tr>
               <th>Label</th>
+              <th>Side</th>
               <th>Type</th>
               <th>Count</th>
               <th>Prefix</th>
@@ -78,6 +85,12 @@ export function TemplateEditor({ initial, onClose }: Props) {
               <tr key={i}>
                 <td>
                   <input value={g.label} onChange={(e) => setGroup(i, { label: e.target.value })} />
+                </td>
+                <td>
+                  <select value={g.face ?? 'front'} onChange={(e) => setGroup(i, { face: e.target.value as Face })} disabled={!t.fullDepth}>
+                    <option value="front">Front</option>
+                    <option value="rear">Rear</option>
+                  </select>
                 </td>
                 <td>
                   <select value={g.type} onChange={(e) => setGroup(i, { type: e.target.value as PortType })}>

@@ -10,9 +10,22 @@ function isTyping(e: KeyboardEvent) {
   return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
 }
 
+/** Slim bar shown in place of a collapsed side panel. */
+function PanelStrip({ side, label, onOpen }: { side: 'left' | 'right'; label: string; onOpen: () => void }) {
+  return (
+    <button className={`panel-strip ${side}`} onClick={onOpen} title={`Show ${label.toLowerCase()} (${side === 'left' ? '[' : ']'})`}>
+      <span className="strip-arrow">{side === 'left' ? '»' : '«'}</span>
+      <span className="strip-label">{label}</span>
+    </button>
+  );
+}
+
 export function App() {
   const message = useStore((s) => s.message);
   const flash = useStore((s) => s.flash);
+  const libraryOpen = useStore((s) => s.libraryOpen);
+  const inspectorOpen = useStore((s) => s.inspectorOpen);
+  const togglePanel = useStore((s) => s.togglePanel);
 
   useEffect(() => {
     if (!message) return;
@@ -32,6 +45,10 @@ export function App() {
       } else if (mod && e.key.toLowerCase() === 'y') {
         e.preventDefault();
         s.redo();
+      } else if (!mod && e.key === '[') {
+        s.togglePanel('library');
+      } else if (!mod && e.key === ']') {
+        s.togglePanel('inspector');
       } else if (e.key === 'Escape') {
         s.select(null);
       } else if ((e.key === 'Delete' || e.key === 'Backspace') && s.selection) {
@@ -52,10 +69,13 @@ export function App() {
   return (
     <div className="app">
       <Toolbar />
-      <div className="workspace">
-        <Library />
+      <div
+        className="workspace"
+        style={{ gridTemplateColumns: `${libraryOpen ? 'var(--library-w)' : 'var(--strip-w)'} 1fr ${inspectorOpen ? 'var(--inspector-w)' : 'var(--strip-w)'}` }}
+      >
+        {libraryOpen ? <Library /> : <PanelStrip side="left" label="Device library" onOpen={() => togglePanel('library')} />}
         <Canvas />
-        <Inspector />
+        {inspectorOpen ? <Inspector /> : <PanelStrip side="right" label="Properties / Cables" onOpen={() => togglePanel('inspector')} />}
       </div>
       {message ? (
         <div className="toast" role="status" onClick={() => flash(null)}>

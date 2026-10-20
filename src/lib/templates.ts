@@ -8,47 +8,52 @@ const g = (
   rows = 1,
   numbering: PortGroupSpec['numbering'] = 'zigzag',
   start = 1,
-): PortGroupSpec => ({ label, prefix, count, type, rows, numbering, start });
+): PortGroupSpec => ({ label, prefix, count, type, rows, numbering, start, face: 'front' });
+
+/** The same port group, on the back of the device. */
+const rear = (spec: PortGroupSpec): PortGroupSpec => ({ ...spec, face: 'rear' });
+
+const psu = (count: number, rows = 1) => rear(g('PSU', 'PSU', count, 'power-in', rows, 'row'));
 
 export const BUILTIN_TEMPLATES: DeviceTemplate[] = [
   // Switches
-  { id: 'sw-8', name: 'Switch 8-port', category: 'switch', heightU: 1, portGroups: [g('RJ45', 'Gi', 8, 'rj45'), g('Uplink', 'SFP', 2, 'sfp')] },
-  { id: 'sw-16', name: 'Switch 16-port', category: 'switch', heightU: 1, portGroups: [g('RJ45', 'Gi', 16, 'rj45', 2), g('Uplink', 'SFP', 2, 'sfp')] },
-  { id: 'sw-24', name: 'Switch 24-port', category: 'switch', heightU: 1, portGroups: [g('RJ45', 'Gi', 24, 'rj45', 2), g('Uplink', 'Te', 4, 'sfp+', 2)] },
-  { id: 'sw-48', name: 'Switch 48-port', category: 'switch', heightU: 1, portGroups: [g('RJ45', 'Gi', 48, 'rj45', 2), g('Uplink', 'Te', 4, 'sfp+', 2)] },
-  { id: 'sw-48-poe', name: 'Switch 48-port PoE + mgmt', category: 'switch', heightU: 1, portGroups: [g('RJ45 PoE', 'Gi', 48, 'rj45', 2), g('Uplink', 'Te', 4, 'sfp+', 2), g('Mgmt', 'Mgmt', 1, 'rj45'), g('Console', 'Con', 1, 'console')] },
-  { id: 'sw-agg-48', name: 'Aggregation 48x SFP+ / 6x QSFP', category: 'switch', heightU: 1, portGroups: [g('SFP+', 'Te', 48, 'sfp+', 2), g('QSFP28', 'Hu', 6, 'qsfp', 2)] },
-  { id: 'sw-core-32', name: 'Spine 32x QSFP', category: 'switch', heightU: 1, portGroups: [g('QSFP28', 'Hu', 32, 'qsfp', 2)] },
+  { id: 'sw-8', name: 'Switch 8-port', category: 'switch', heightU: 1, fullDepth: true, portGroups: [g('RJ45', 'Gi', 8, 'rj45'), g('Uplink', 'SFP', 2, 'sfp'), psu(1)] },
+  { id: 'sw-16', name: 'Switch 16-port', category: 'switch', heightU: 1, fullDepth: true, portGroups: [g('RJ45', 'Gi', 16, 'rj45', 2), g('Uplink', 'SFP', 2, 'sfp'), psu(1)] },
+  { id: 'sw-24', name: 'Switch 24-port', category: 'switch', heightU: 1, fullDepth: true, portGroups: [g('RJ45', 'Gi', 24, 'rj45', 2), g('Uplink', 'Te', 4, 'sfp+', 2), psu(1)] },
+  { id: 'sw-48', name: 'Switch 48-port', category: 'switch', heightU: 1, fullDepth: true, portGroups: [g('RJ45', 'Gi', 48, 'rj45', 2), g('Uplink', 'Te', 4, 'sfp+', 2), psu(2)] },
+  { id: 'sw-48-poe', name: 'Switch 48-port PoE + mgmt', category: 'switch', heightU: 1, fullDepth: true, portGroups: [g('RJ45 PoE', 'Gi', 48, 'rj45', 2), g('Uplink', 'Te', 4, 'sfp+', 2), g('Mgmt', 'Mgmt', 1, 'rj45'), g('Console', 'Con', 1, 'console'), psu(2)] },
+  { id: 'sw-agg-48', name: 'Aggregation 48x SFP+ / 6x QSFP', category: 'switch', heightU: 1, fullDepth: true, portGroups: [g('SFP+', 'Te', 48, 'sfp+', 2), g('QSFP28', 'Hu', 6, 'qsfp', 2), rear(g('Mgmt', 'Mgmt', 1, 'rj45')), rear(g('Console', 'Con', 1, 'console')), psu(2)] },
+  { id: 'sw-core-32', name: 'Spine 32x QSFP', category: 'switch', heightU: 1, fullDepth: true, portGroups: [g('QSFP28', 'Hu', 32, 'qsfp', 2), rear(g('Mgmt', 'Mgmt', 1, 'rj45')), rear(g('Console', 'Con', 1, 'console')), psu(2)] },
 
   // Patch panels
-  { id: 'pp-12', name: 'Patch panel 12-port', category: 'patch-panel', heightU: 1, portGroups: [g('Cat6', '', 12, 'rj45', 1, 'row')] },
-  { id: 'pp-24', name: 'Patch panel 24-port', category: 'patch-panel', heightU: 1, portGroups: [g('Cat6', '', 24, 'rj45', 1, 'row')] },
-  { id: 'pp-48', name: 'Patch panel 48-port (1U HD)', category: 'patch-panel', heightU: 1, portGroups: [g('Cat6', '', 48, 'rj45', 2, 'row')] },
-  { id: 'pp-48-2u', name: 'Patch panel 48-port (2U)', category: 'patch-panel', heightU: 2, portGroups: [g('Cat6', '', 48, 'rj45', 2, 'row')] },
-  { id: 'fp-24', name: 'Fibre panel 24x LC', category: 'patch-panel', heightU: 1, portGroups: [g('LC duplex', 'F', 24, 'lc', 1, 'row')] },
-  { id: 'fp-12-sc', name: 'Fibre panel 12x SC', category: 'patch-panel', heightU: 1, portGroups: [g('SC', 'F', 12, 'sc', 1, 'row')] },
+  { id: 'pp-12', name: 'Patch panel 12-port', category: 'patch-panel', heightU: 1, fullDepth: false, portGroups: [g('Cat6', '', 12, 'rj45', 1, 'row')] },
+  { id: 'pp-24', name: 'Patch panel 24-port', category: 'patch-panel', heightU: 1, fullDepth: false, portGroups: [g('Cat6', '', 24, 'rj45', 1, 'row')] },
+  { id: 'pp-48', name: 'Patch panel 48-port (1U HD)', category: 'patch-panel', heightU: 1, fullDepth: false, portGroups: [g('Cat6', '', 48, 'rj45', 2, 'row')] },
+  { id: 'pp-48-2u', name: 'Patch panel 48-port (2U)', category: 'patch-panel', heightU: 2, fullDepth: false, portGroups: [g('Cat6', '', 48, 'rj45', 2, 'row')] },
+  { id: 'fp-24', name: 'Fibre panel 24x LC', category: 'patch-panel', heightU: 1, fullDepth: false, portGroups: [g('LC duplex', 'F', 24, 'lc', 1, 'row')] },
+  { id: 'fp-12-sc', name: 'Fibre panel 12x SC', category: 'patch-panel', heightU: 1, fullDepth: false, portGroups: [g('SC', 'F', 12, 'sc', 1, 'row')] },
 
   // Servers
-  { id: 'srv-1u', name: 'Server 1U', category: 'server', heightU: 1, portGroups: [g('NIC', 'eth', 2, 'rj45', 1, 'row', 0), g('SFP+', 'p', 2, 'sfp+', 1, 'row', 1), g('iDRAC/iLO', 'bmc', 1, 'rj45'), g('PSU', 'PSU', 2, 'power-in', 1, 'row')] },
-  { id: 'srv-2u', name: 'Server 2U', category: 'server', heightU: 2, portGroups: [g('NIC', 'eth', 4, 'rj45', 2, 'row', 0), g('SFP+', 'p', 4, 'sfp+', 2, 'row', 1), g('iDRAC/iLO', 'bmc', 1, 'rj45'), g('PSU', 'PSU', 2, 'power-in', 2, 'row')] },
-  { id: 'srv-4u', name: 'Server 4U', category: 'server', heightU: 4, portGroups: [g('NIC', 'eth', 4, 'rj45', 2, 'row', 0), g('SFP28', 'p', 4, 'sfp28', 2, 'row', 1), g('QSFP', 'q', 2, 'qsfp', 2, 'row'), g('iDRAC/iLO', 'bmc', 1, 'rj45'), g('PSU', 'PSU', 4, 'power-in', 4, 'row')] },
+  { id: 'srv-1u', name: 'Server 1U', category: 'server', heightU: 1, fullDepth: true, portGroups: [rear(g('NIC', 'eth', 2, 'rj45', 1, 'row', 0)), rear(g('SFP+', 'p', 2, 'sfp+', 1, 'row', 1)), rear(g('iDRAC/iLO', 'bmc', 1, 'rj45')), psu(2)] },
+  { id: 'srv-2u', name: 'Server 2U', category: 'server', heightU: 2, fullDepth: true, portGroups: [rear(g('NIC', 'eth', 4, 'rj45', 2, 'row', 0)), rear(g('SFP+', 'p', 4, 'sfp+', 2, 'row', 1)), rear(g('iDRAC/iLO', 'bmc', 1, 'rj45')), psu(2, 2)] },
+  { id: 'srv-4u', name: 'Server 4U', category: 'server', heightU: 4, fullDepth: true, portGroups: [rear(g('NIC', 'eth', 4, 'rj45', 2, 'row', 0)), rear(g('SFP28', 'p', 4, 'sfp28', 2, 'row', 1)), rear(g('QSFP', 'q', 2, 'qsfp', 2, 'row')), rear(g('iDRAC/iLO', 'bmc', 1, 'rj45')), psu(4, 4)] },
 
   // Routers / firewalls
-  { id: 'rtr-1u', name: 'Router 1U', category: 'router', heightU: 1, portGroups: [g('WAN/LAN', 'Gi0/', 8, 'rj45', 2, 'zigzag', 0), g('SFP', 'SFP', 2, 'sfp'), g('Console', 'Con', 1, 'console')] },
-  { id: 'fw-1u', name: 'Firewall 1U', category: 'firewall', heightU: 1, portGroups: [g('Data', 'port', 8, 'rj45', 2), g('SFP+', 'x', 4, 'sfp+', 2), g('Mgmt', 'mgmt', 1, 'rj45'), g('HA', 'ha', 1, 'rj45'), g('Console', 'Con', 1, 'console')] },
+  { id: 'rtr-1u', name: 'Router 1U', category: 'router', heightU: 1, fullDepth: true, portGroups: [g('WAN/LAN', 'Gi0/', 8, 'rj45', 2, 'zigzag', 0), g('SFP', 'SFP', 2, 'sfp'), g('Console', 'Con', 1, 'console'), psu(1)] },
+  { id: 'fw-1u', name: 'Firewall 1U', category: 'firewall', heightU: 1, fullDepth: true, portGroups: [g('Data', 'port', 8, 'rj45', 2), g('SFP+', 'x', 4, 'sfp+', 2), g('Mgmt', 'mgmt', 1, 'rj45'), g('HA', 'ha', 1, 'rj45'), g('Console', 'Con', 1, 'console'), psu(2)] },
 
   // Storage
-  { id: 'nas-2u', name: 'NAS / SAN 2U', category: 'storage', heightU: 2, portGroups: [g('NIC', 'eth', 4, 'rj45', 2, 'row', 0), g('SFP+', 'p', 4, 'sfp+', 2, 'row'), g('Mgmt', 'mgmt', 1, 'rj45'), g('PSU', 'PSU', 2, 'power-in', 2, 'row')] },
+  { id: 'nas-2u', name: 'NAS / SAN 2U', category: 'storage', heightU: 2, fullDepth: true, portGroups: [rear(g('NIC', 'eth', 4, 'rj45', 2, 'row', 0)), rear(g('SFP+', 'p', 4, 'sfp+', 2, 'row')), rear(g('Mgmt', 'mgmt', 1, 'rj45')), psu(2, 2)] },
 
   // Power
-  { id: 'pdu-1u', name: 'PDU 1U 8x C13', category: 'power', heightU: 1, portGroups: [g('Outlets', 'Out', 8, 'power', 1, 'row')] },
-  { id: 'pdu-2u', name: 'PDU 2U 16x C13', category: 'power', heightU: 2, portGroups: [g('Outlets', 'Out', 16, 'power', 2, 'row')] },
-  { id: 'ups-2u', name: 'UPS 2U', category: 'power', heightU: 2, portGroups: [g('Outlets', 'Out', 8, 'power', 2, 'row'), g('Network card', 'net', 1, 'rj45')] },
+  { id: 'pdu-1u', name: 'PDU 1U 8x C13', category: 'power', heightU: 1, fullDepth: false, defaultFacing: 'rear', portGroups: [g('Outlets', 'Out', 8, 'power', 1, 'row')] },
+  { id: 'pdu-2u', name: 'PDU 2U 16x C13', category: 'power', heightU: 2, fullDepth: false, defaultFacing: 'rear', portGroups: [g('Outlets', 'Out', 16, 'power', 2, 'row')] },
+  { id: 'ups-2u', name: 'UPS 2U', category: 'power', heightU: 2, fullDepth: true, portGroups: [rear(g('Outlets', 'Out', 8, 'power', 2, 'row')), rear(g('Network card', 'net', 1, 'rj45'))] },
 
   // Other
-  { id: 'cm-1u', name: 'Cable manager 1U', category: 'other', heightU: 1, portGroups: [] },
-  { id: 'blank-1u', name: 'Blanking panel 1U', category: 'other', heightU: 1, portGroups: [] },
-  { id: 'shelf-2u', name: 'Shelf 2U', category: 'other', heightU: 2, portGroups: [] },
+  { id: 'cm-1u', name: 'Cable manager 1U', category: 'other', heightU: 1, fullDepth: false, portGroups: [] },
+  { id: 'blank-1u', name: 'Blanking panel 1U', category: 'other', heightU: 1, fullDepth: false, portGroups: [] },
+  { id: 'shelf-2u', name: 'Shelf 2U', category: 'other', heightU: 2, fullDepth: true, portGroups: [] },
 ];
 
 export const CATEGORY_LABELS: Record<DeviceCategory, string> = {

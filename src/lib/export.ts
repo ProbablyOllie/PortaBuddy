@@ -1,6 +1,8 @@
-import { cableIndex, findPort, spanOf } from './project';
+import { cableIndex, describePort, findPort, groupRackFace, spanOf, visibleOn } from './project';
 import { CATEGORY_LABELS, PORT_TYPE_LABELS, colorName } from './templates';
-import type { PortRef, Project } from './types';
+import type { Face, PortRef, Project } from './types';
+
+const faceLabel = (f: Face) => (f === 'front' ? 'Front' : 'Rear');
 
 export type Row = (string | number)[];
 
@@ -12,10 +14,11 @@ export interface Sheet {
 
 function endpointCols(project: Project, ref: PortRef): Row {
   const info = findPort(project, ref);
-  if (!info) return ['', '', '(deleted)', '', ''];
+  if (!info) return ['', '', '', '(deleted)', '', ''];
   return [
     info.rack?.name ?? '',
     `U${info.device.positionU}`,
+    faceLabel(info.face),
     info.device.name,
     info.port.name || info.group.label,
     PORT_TYPE_LABELS[info.type],
@@ -38,8 +41,8 @@ export function cableSheet(project: Project): Sheet {
     name: 'Cable Schedule',
     header: [
       'Cable ID', 'Cable type', 'Colour', 'Length (m)',
-      'A: Rack', 'A: U', 'A: Device', 'A: Port', 'A: Port type',
-      'B: Rack', 'B: U', 'B: Device', 'B: Port', 'B: Port type',
+      'A: Rack', 'A: U', 'A: Side', 'A: Device', 'A: Port', 'A: Port type',
+      'B: Rack', 'B: U', 'B: Side', 'B: Device', 'B: Port', 'B: Port type',
       'Notes',
     ],
     rows: cables.map((c) => {
@@ -69,12 +72,12 @@ export function portMapSheet(project: Project): Sheet {
         let peer = '';
         if (cable) {
           const other = cable.a.portId === port.id ? cable.b : cable.a;
-          const info = findPort(project, other);
-          peer = info ? `${info.rack?.name ?? ''} / U${info.device.positionU} ${info.device.name} / ${info.port.name || info.group.label}` : '(deleted)';
+          peer = findPort(project, other) ? describePort(project, other) : '(deleted)';
         }
         rows.push([
           rack.name,
           `U${device.positionU}`,
+          faceLabel(groupRackFace(device, group)),
           device.name,
           port.name || group.label,
           group.label,
@@ -89,7 +92,7 @@ export function portMapSheet(project: Project): Sheet {
   }
   return {
     name: 'Port Map',
-    header: ['Rack', 'U', 'Device', 'Port', 'Port group', 'Port type', 'Status', 'Cable ID', 'Cable type', 'Connected to'],
+    header: ['Rack', 'U', 'Side', 'Device', 'Port', 'Port group', 'Port type', 'Status', 'Cable ID', 'Cable type', 'Connected to'],
     rows,
   };
 }
@@ -98,7 +101,7 @@ export function deviceSheet(project: Project): Sheet {
   const index = cableIndex(project.cables);
   return {
     name: 'Devices',
-    header: ['Rack', 'Location', 'Position', 'Height (U)', 'Device', 'Model', 'Category', 'Ports', 'Ports used', 'Notes'],
+    header: ['Rack', 'Location', 'Position', 'Height (U)', 'Facing', 'Depth', 'Device', 'Model', 'Category', 'Ports', 'Ports used', 'Notes'],
     rows: orderedDevices(project).map(({ rack, device }) => {
       const ports = device.portGroups.flatMap((g) => g.ports);
       const [bottom, top] = spanOf(device);
@@ -107,6 +110,8 @@ export function deviceSheet(project: Project): Sheet {
         rack.location,
         bottom === top ? `U${bottom}` : `U${bottom}-U${top}`,
         device.heightU,
+        faceLabel(device.facing),
+        device.fullDepth ? 'Full' : 'Half',
         device.name,
         device.model,
         CATEGORY_LABELS[device.category],
@@ -118,23 +123,27 @@ export function deviceSheet(project: Project): Sheet {
   };
 }
 
-/** Grid of rack elevations: one column per rack, one row per U (top of rack first). */
+/** Grid of rack elevations: a front and a rear column per rack, one row per U (top of rack first). */
 export function elevationGrid(project: Project): { header: string[]; rows: Row[]; merges: { col: number; fromRow: number; toRow: number }[] } {
   const maxU = Math.max(0, ...project.racks.map((r) => r.heightU));
+  const faces: Face[] = ['front', 'rear'];
+  const columns = project.racks.flatMap((rack) => faces.map((face) => ({ rack, face })));
   const rows: Row[] = [];
   const merges: { col: number; fromRow: number; toRow: number }[] = [];
-  for (let u = maxU; u >= 1; u--) rows.push([`U${u}`, ...project.racks.map(() => '')]);
-  project.racks.forEach((rack, ri) => {
-    for (let u = maxU; u > rack.heightU; u--) rows[maxU - u][ri + 1] = '—';
-    for (const d of project.devices.filter((x) => x.rackId === rack.id)) {
+  for (let u = maxU; u >= 1; u--) rows.push([`U${u}`, ...columns.map(() => '')]);
+  columns.forEach(({ rack, face }, ci) => {
+    const col = ci + 1;
+    for (let u = maxU; u > rack.heightU; u--) rows[maxU - u][col] = '—';
+    for (const d of project.devices.filter((x) => x.rackId === rack.id && visibleOn(x, face))) {
       const [bottom, top] = spanOf(d);
       const fromRow = maxU - top;
       const toRow = maxU - bottom;
-      rows[fromRow][ri + 1] = d.name === d.model ? d.name : `${d.name} (${d.model})`;
-      if (toRow > fromRow) merges.push({ col: ri + 1, fromRow, toRow });
+      const label = d.name === d.model ? d.name : `${d.name} (${d.model})`;
+      rows[fromRow][col] = d.facing === face ? label : `${label} — rear`;
+      if (toRow > fromRow) merges.push({ col, fromRow, toRow });
     }
   });
-  return { header: ['U', ...project.racks.map((r) => r.name)], rows, merges };
+  return { header: ['U', ...columns.map(({ rack, face }) => `${rack.name} ${faceLabel(face)}`)], rows, merges };
 }
 
 function csvCell(v: string | number): string {
@@ -185,7 +194,7 @@ export async function buildWorkbook(project: Project): Promise<Blob> {
   if (cableWs) {
     const sorted = [...project.cables].sort((x, y) => x.label.localeCompare(y.label, undefined, { numeric: true }));
     sorted.forEach((c, i) => {
-      const cell = cableWs.getCell(i + 2, 3);
+      const cell = cableWs.getCell(i + 2, 3); // Colour column
       const argb = 'FF' + c.color.replace('#', '').toUpperCase();
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
       const dark = parseInt(c.color.slice(1, 3), 16) * 0.299 + parseInt(c.color.slice(3, 5), 16) * 0.587 + parseInt(c.color.slice(5, 7), 16) * 0.114 < 140;
@@ -200,7 +209,7 @@ export async function buildWorkbook(project: Project): Promise<Blob> {
   ews.getRow(1).font = headerFont;
   ews.getRow(1).fill = headerFill;
   ews.getColumn(1).width = 6;
-  for (let c = 2; c <= elev.header.length; c++) ews.getColumn(c).width = 36;
+  for (let c = 2; c <= elev.header.length; c++) ews.getColumn(c).width = 32;
   const border = { style: 'thin' as const, color: { argb: 'FF9CA3AF' } };
   elev.rows.forEach((row, ri) => {
     row.forEach((v, ci) => {

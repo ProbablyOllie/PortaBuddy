@@ -27,6 +27,9 @@ export type DeviceCategory =
  */
 export type PortNumbering = 'zigzag' | 'row';
 
+/** A side of the rack, or of a device. */
+export type Face = 'front' | 'rear';
+
 /** Template form of a port group: generates `count` ports named `${prefix}${start + i}`. */
 export interface PortGroupSpec {
   label: string;
@@ -36,6 +39,8 @@ export interface PortGroupSpec {
   type: PortType;
   rows: number;
   numbering: PortNumbering;
+  /** Which side of the device the ports are on (default front). */
+  face?: Face;
 }
 
 export interface DeviceTemplate {
@@ -44,6 +49,10 @@ export interface DeviceTemplate {
   category: DeviceCategory;
   heightU: number;
   portGroups: PortGroupSpec[];
+  /** Full-depth devices fill the U from front to rear; half-depth ones only occupy the side they face. */
+  fullDepth: boolean;
+  /** Rack side the device is normally mounted facing, used when adding it without a target side. */
+  defaultFacing?: Face;
   custom?: boolean;
 }
 
@@ -57,6 +66,8 @@ export interface PortGroup {
   type: PortType;
   rows: number;
   numbering: PortNumbering;
+  /** Side of the device the ports are on. */
+  face: Face;
   ports: Port[];
 }
 
@@ -76,6 +87,9 @@ export interface Device {
   heightU: number;
   /** Lowest rack unit the device occupies (1-based, U1 is the bottom of the rack). */
   positionU: number;
+  /** Rack side the device's front panel faces. */
+  facing: Face;
+  fullDepth: boolean;
   portGroups: PortGroup[];
   notes: string;
 }
@@ -111,7 +125,7 @@ export interface Cable {
 }
 
 export interface Project {
-  version: 1;
+  version: 2;
   name: string;
   racks: Rack[];
   devices: Device[];

@@ -8,7 +8,7 @@ function setup() {
   const rackId = s().project.racks[0].id;
   expect(s().placeDevice('sw-24', rackId, 40)).toBe(true);
   expect(s().placeDevice('pp-24', rackId, 41)).toBe(true);
-  expect(s().placeDevice('pdu-1u', rackId, 1)).toBe(true);
+  expect(s().placeDevice('pdu-1u', rackId, 1, 'front')).toBe(true);
   const [sw, pp, pdu] = s().project.devices;
   return { rackId, sw, pp, pdu };
 }
@@ -72,6 +72,21 @@ describe('store', () => {
     expect(s().past.length).toBe(before + 1);
     s().undo();
     expect(s().project.devices.find((d) => d.id === sw.id)!.name).toBe('Switch 24-port');
+  });
+
+  it('turns devices round and respects the other side', () => {
+    const { rackId, pp, sw } = setup();
+    // A half-depth patch panel at U41 leaves the rear of U41 free for another half-depth device...
+    expect(s().placeDevice('pdu-1u', rackId, 41, 'rear')).toBe(true);
+    // ...but not for the full-depth switch.
+    expect(s().moveDevice(sw.id, rackId, 41)).toBe(false);
+    // The panel can't be turned to the rear now that the PDU is there.
+    expect(s().setDeviceMount(pp.id, { facing: 'rear' })).toBe(false);
+    expect(s().setDeviceMount(sw.id, { facing: 'rear' })).toBe(true);
+    expect(s().project.devices.find((d) => d.id === sw.id)!.facing).toBe('rear');
+    // Moving with a new facing turns the device round.
+    expect(s().moveDevice(pp.id, rackId, 30, 'rear')).toBe(true);
+    expect(s().project.devices.find((d) => d.id === pp.id)).toMatchObject({ positionU: 30, facing: 'rear' });
   });
 
   it('duplicates a device with fresh port ids', () => {

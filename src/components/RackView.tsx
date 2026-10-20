@@ -1,8 +1,8 @@
 import { useEffect, useState, type DragEvent } from 'react';
 import { MIME, currentDrag, endDrag, type DragPayload } from '../lib/dnd';
 import { FACE_W, U_PX } from '../lib/layout';
-import { canPlace } from '../lib/project';
-import type { Cable, Rack } from '../lib/types';
+import { canPlace, otherFace, visibleOn } from '../lib/project';
+import type { Cable, Face, Rack } from '../lib/types';
 import { useStore } from '../store';
 import { clickSuppressed } from '../wiring';
 import { DeviceView } from './DeviceView';
@@ -14,6 +14,35 @@ interface Props {
 }
 
 export function RackView({ rack, cables, peers }: Props) {
+  const view = useStore((s) => s.view);
+  const selection = useStore((s) => s.selection);
+  const select = useStore((s) => s.select);
+  const faces: Face[] = view === 'both' ? ['front', 'rear'] : [view];
+  const rackSelected = selection?.kind === 'rack' && selection.id === rack.id;
+
+  return (
+    <div className={`rack${rackSelected ? ' selected' : ''}`}>
+      <button className="rack-header" onClick={() => select({ kind: 'rack', id: rack.id })} title="Rack properties">
+        <span className="rack-name">{rack.name}</span>
+        <span className="rack-meta">
+          {rack.location ? `${rack.location} · ` : ''}
+          {rack.heightU}U
+        </span>
+      </button>
+      <div className="rack-faces">
+        {faces.map((face) => (
+          <RackFace key={face} rack={rack} face={face} cables={cables} peers={peers} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface FaceProps extends Props {
+  face: Face;
+}
+
+function RackFace({ rack, face, cables, peers }: FaceProps) {
   const project = useStore((s) => s.project);
   const selection = useStore((s) => s.selection);
   const select = useStore((s) => s.select);
@@ -33,8 +62,12 @@ export function RackView({ rack, cables, peers }: Props) {
     };
   }, []);
 
-  const devices = project.devices.filter((d) => d.rackId === rack.id);
+  const devices = project.devices.filter((d) => d.rackId === rack.id && visibleOn(d, face));
   const selectedCableId = selection?.kind === 'cable' ? selection.id : null;
+
+  /** Side the dropped device will face: new devices face this side; moved ones turn round only when they cross sides. */
+  const facingFor = (payload: DragPayload): Face =>
+    payload.kind === 'template' ? face : payload.fromFace === face ? payload.facing : otherFace(payload.facing);
 
   /** Rack position (bottom U) the dragged item would occupy for the pointer's current height. */
   const targetFor = (e: DragEvent, payload: DragPayload) => {
@@ -45,7 +78,8 @@ export function RackView({ rack, cables, peers }: Props) {
     const topU = rack.heightU - fromTop + grab;
     const positionU = Math.max(1, Math.min(rack.heightU - payload.heightU + 1, topU - payload.heightU + 1));
     const ignore = payload.kind === 'device' ? payload.deviceId : undefined;
-    return { positionU, heightU: payload.heightU, ok: canPlace(project, rack.id, payload.heightU, positionU, ignore) };
+    const mount = { heightU: payload.heightU, positionU, facing: facingFor(payload), fullDepth: payload.fullDepth };
+    return { positionU, heightU: payload.heightU, ok: canPlace(project, rack.id, mount, ignore) };
   };
 
   const onDragOver = (e: DragEvent) => {
@@ -70,34 +104,31 @@ export function RackView({ rack, cables, peers }: Props) {
     }
     endDrag();
     const t = targetFor(e, payload);
+    const facing = facingFor(payload);
     const ok =
       t.ok &&
       (payload.kind === 'template'
-        ? placeDevice(payload.templateId, rack.id, t.positionU)
-        : moveDevice(payload.deviceId, rack.id, t.positionU));
+        ? placeDevice(payload.templateId, rack.id, t.positionU, facing)
+        : moveDevice(payload.deviceId, rack.id, t.positionU, facing));
     if (!ok) flash('Not enough free space there.');
   };
 
   const units = Array.from({ length: rack.heightU }, (_, i) => rack.heightU - i);
-  const rackSelected = selection?.kind === 'rack' && selection.id === rack.id;
+  const rail = (
+    <div className="rail">
+      {units.map((u) => (
+        <div key={u} className="rail-u" style={{ height: U_PX }}>
+          {u}
+        </div>
+      ))}
+    </div>
+  );
 
   return (
-    <div className={`rack${rackSelected ? ' selected' : ''}`}>
-      <button className="rack-header" onClick={() => select({ kind: 'rack', id: rack.id })} title="Rack properties">
-        <span className="rack-name">{rack.name}</span>
-        <span className="rack-meta">
-          {rack.location ? `${rack.location} · ` : ''}
-          {rack.heightU}U
-        </span>
-      </button>
+    <div className={`rack-face face-${face}`}>
+      <div className="face-label">{face === 'front' ? 'Front' : 'Rear'}</div>
       <div className="rack-body">
-        <div className="rail">
-          {units.map((u) => (
-            <div key={u} className="rail-u" style={{ height: U_PX }}>
-              {u}
-            </div>
-          ))}
-        </div>
+        {rail}
         <div
           className="rack-slots"
           style={{ width: FACE_W, height: rack.heightU * U_PX, backgroundSize: `100% ${U_PX}px` }}
@@ -115,6 +146,7 @@ export function RackView({ rack, cables, peers }: Props) {
             <DeviceView
               key={d.id}
               device={d}
+              face={face}
               rackHeightU={rack.heightU}
               cables={cables}
               peers={peers}
@@ -132,13 +164,7 @@ export function RackView({ rack, cables, peers }: Props) {
             </div>
           ) : null}
         </div>
-        <div className="rail">
-          {units.map((u) => (
-            <div key={u} className="rail-u" style={{ height: U_PX }}>
-              {u}
-            </div>
-          ))}
-        </div>
+        {rail}
       </div>
     </div>
   );
