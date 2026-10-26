@@ -3,6 +3,7 @@ import { BulkPatch } from './components/BulkPatch';
 import { Canvas } from './components/Canvas';
 import { Inspector } from './components/Inspector';
 import { Library } from './components/Library';
+import { ProjectsDialog } from './components/ProjectsDialog';
 import { Toolbar } from './components/Toolbar';
 import { useStore } from './store';
 
@@ -29,6 +30,7 @@ export function App() {
   const togglePanel = useStore((s) => s.togglePanel);
   const bulkPatch = useStore((s) => s.bulkPatch);
   const openBulkPatch = useStore((s) => s.openBulkPatch);
+  const projectsOpen = useStore((s) => s.projectsOpen);
 
   useEffect(() => {
     if (!message) return;
@@ -80,6 +82,7 @@ export function App() {
         <Canvas />
         {inspectorOpen ? <Inspector /> : <PanelStrip side="right" label="Properties / Cables" onOpen={() => togglePanel('inspector')} />}
       </div>
+      {projectsOpen ? <ProjectsDialog /> : null}
       {bulkPatch ? <BulkPatch initialFrom={bulkPatch.from} onClose={() => openBulkPatch(null)} /> : null}
       {message ? (
         <div className="toast" role="status" onClick={() => flash(null)}>

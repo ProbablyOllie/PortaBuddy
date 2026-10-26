@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { canPlace, createDevice, emptyProject, findPort, nextCableLabel, parseProject, uid } from './lib/project';
+import { library, StorageFullError, type ProjectMeta } from './lib/library';
+import { canPlace, createDevice, emptyProject, findPort, nextCableLabel, uid } from './lib/project';
 import { BUILTIN_TEMPLATES, defaultCableFor } from './lib/templates';
 import type { Cable, Device, DeviceTemplate, Face, PortRef, PortType, Project, Rack, Selection } from './lib/types';
 
@@ -12,6 +13,17 @@ const HISTORY_LIMIT = 100;
 
 interface State {
   project: Project;
+  /** Library id of the open project. */
+  projectId: string;
+  /** Last change to the open project (null if untouched since it was created). */
+  lastEditAt: number | null;
+  /** Last time the open project was downloaded with Save. */
+  fileSavedAt: number | null;
+  /** The last write to browser storage failed (usually because it is full). */
+  storageError: boolean;
+  /** Ask before closing the tab when there are changes not saved to a file. */
+  warnOnClose: boolean;
+  projectsOpen: boolean;
   past: Project[];
   future: Project[];
   selection: Selection;
@@ -49,8 +61,18 @@ interface State {
   redo: () => void;
 
   setProjectName: (name: string) => void;
-  loadProject: (p: Project) => void;
+  /** Start a new, empty project; the current one stays in the library. */
   newProject: () => void;
+  /** Add a project read from a file to the library and open it. */
+  importProject: (p: Project) => void;
+  openProject: (id: string) => void;
+  duplicateProject: (id: string) => void;
+  deleteProject: (id: string) => void;
+  /** Replace the open project with an earlier version (the current state is kept as a version first). */
+  restoreVersion: (at: number) => void;
+  markFileSaved: () => void;
+  setWarnOnClose: (on: boolean) => void;
+  showProjects: (open: boolean) => void;
 
   addRack: () => void;
   updateRack: (id: string, patch: Partial<Omit<Rack, 'id'>>) => void;
@@ -99,6 +121,19 @@ export function allTemplates(project: Project): DeviceTemplate[] {
   return [...BUILTIN_TEMPLATES, ...project.customTemplates];
 }
 
+const boot = library.boot();
+
+/**
+ * When the project was last changed, for the "not backed up" warning. A project that was never
+ * touched since it was created counts as unchanged — unless it has content (e.g. imported from
+ * the old single autosave), which is worth backing up.
+ */
+function editedAt(meta: ProjectMeta | undefined, project: Project): number | null {
+  if (!meta) return null;
+  const hasContent = project.devices.length > 0 || project.cables.length > 0;
+  return meta.updatedAt > meta.createdAt || hasContent ? meta.updatedAt : null;
+}
+
 export const useStore = create<State>()(
   persist(
     (set, get) => {
@@ -120,8 +155,31 @@ export const useStore = create<State>()(
         else set({ project: next, past: [...get().past.slice(-HISTORY_LIMIT + 1), prev], future: [] });
       };
 
+      /** Open a project from the library, with a fresh undo history. */
+      const switchTo = (id: string) => {
+        const project = library.load(id) ?? emptyProject();
+        library.setCurrent(id);
+        const meta = library.meta(id);
+        set({
+          project,
+          projectId: id,
+          lastEditAt: editedAt(meta, project),
+          fileSavedAt: meta?.fileSavedAt ?? null,
+          past: [],
+          future: [],
+          selection: null,
+          renamingId: null,
+        });
+      };
+
       return {
-        project: emptyProject(),
+        project: boot.project,
+        projectId: boot.id,
+        lastEditAt: editedAt(library.meta(boot.id), boot.project),
+        fileSavedAt: library.meta(boot.id)?.fileSavedAt ?? null,
+        storageError: false,
+        warnOnClose: library.warnOnClose(),
+        projectsOpen: false,
         past: [],
         future: [],
         selection: null,
@@ -162,8 +220,56 @@ export const useStore = create<State>()(
         },
 
         setProjectName: (name) => commit((p) => ({ ...p, name }), 'project-name'),
-        loadProject: (project) => set({ project, past: [], future: [], selection: null }),
-        newProject: () => set({ project: emptyProject(), past: [], future: [], selection: null }),
+        newProject: () => {
+          flushSave();
+          switchTo(library.create(emptyProject()));
+        },
+        importProject: (project) => {
+          flushSave();
+          // Opening a file never overwrites anything: it becomes a project of its own,
+          // already backed up (the file it came from).
+          const id = library.create(project);
+          library.markFileSaved(id);
+          switchTo(id);
+        },
+        openProject: (id) => {
+          if (id === get().projectId) return;
+          flushSave();
+          switchTo(id);
+        },
+        duplicateProject: (id) => {
+          flushSave();
+          const p = library.load(id);
+          if (!p) return;
+          switchTo(library.create({ ...p, name: `${p.name} (copy)` }));
+        },
+        deleteProject: (id) => {
+          const wasOpen = id === get().projectId;
+          library.remove(id);
+          if (wasOpen) {
+            const next = library.list()[0];
+            switchTo(next ? next.id : library.create(emptyProject()));
+          }
+        },
+        restoreVersion: (at) => {
+          const { projectId, project } = get();
+          const snap = library.versions(projectId).find((v) => v.at === at);
+          if (!snap) return;
+          flushSave();
+          library.addVersion(projectId, project);
+          commit(() => snap.project);
+          get().flash('Restored an earlier version. Undo with Ctrl+Z, or restore a newer version.');
+        },
+        markFileSaved: () => {
+          flushSave();
+          library.markFileSaved(get().projectId);
+          set({ fileSavedAt: Date.now() });
+        },
+        setWarnOnClose: (warnOnClose) => {
+          library.setWarnOnClose(warnOnClose);
+          set({ warnOnClose });
+        },
+        showProjects: (projectsOpen) => set({ projectsOpen }),
 
         addRack: () => {
           const id = uid('rack');
@@ -390,10 +496,10 @@ export const useStore = create<State>()(
       };
     },
     {
-      name: 'portabuddy-project',
-      version: 2,
+      // Projects live in the library (lib/library.ts); this key only holds view preferences.
+      name: 'portabuddy-ui',
+      version: 1,
       partialize: (s) => ({
-        project: s.project,
         zoom: s.zoom,
         cableMode: s.cableMode,
         view: s.view,
@@ -402,17 +508,53 @@ export const useStore = create<State>()(
         libraryOpen: s.libraryOpen,
         inspectorOpen: s.inspectorOpen,
       }),
-      migrate: (persisted, version) => {
-        const state = persisted as Pick<State, 'project' | 'zoom' | 'cableMode' | 'view' | 'compact' | 'autoFit' | 'libraryOpen' | 'inspectorOpen'>;
-        if (version < 2 && state.project) {
-          try {
-            return { ...state, project: parseProject(state.project) };
-          } catch {
-            return { ...state, project: emptyProject() };
-          }
-        }
-        return state;
-      },
     },
   ),
 );
+
+// ----- Autosave to the project library -----
+
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let pending: { id: string; project: Project } | null = null;
+
+/** Write any pending change to browser storage now. */
+export function flushSave() {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = null;
+  if (!pending) return;
+  const { id, project } = pending;
+  pending = null;
+  try {
+    library.save(id, project);
+    if (useStore.getState().storageError) useStore.setState({ storageError: false });
+  } catch (err) {
+    if (!(err instanceof StorageFullError)) console.error(err);
+    useStore.setState({ storageError: true });
+    useStore.getState().flash('Could not save in this browser: storage is full. Use Save to download a copy now.');
+  }
+}
+
+useStore.subscribe((s, prev) => {
+  if (s.project === prev.project || s.projectId !== prev.projectId) return;
+  pending = { id: s.projectId, project: s.project };
+  useStore.setState({ lastEditAt: Date.now() });
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushSave, 400);
+});
+
+/** True when the open project has changes that are only in this browser. */
+export function hasUnbackedChanges(s: Pick<State, 'lastEditAt' | 'fileSavedAt'>): boolean {
+  return s.lastEditAt !== null && (s.fileSavedAt === null || s.lastEditAt > s.fileSavedAt);
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', flushSave);
+  window.addEventListener('beforeunload', (e) => {
+    flushSave();
+    const s = useStore.getState();
+    if (s.storageError || (s.warnOnClose && hasUnbackedChanges(s))) {
+      e.preventDefault();
+      e.returnValue = ''; // older browsers need this to show the prompt
+    }
+  });
+}
