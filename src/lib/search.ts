@@ -16,7 +16,7 @@ function matches(terms: string[], text: string): boolean {
 
 /**
  * Find racks, devices, cables and ports. Every word must match, so "pp-a01 12" finds port 12 on
- * PP-A01. Results come back grouped by kind, exact port-name matches first.
+ * PP-A01. Exact port-name matches come first, then racks, devices, cables and other ports.
  */
 export function search(project: Project, query: string, limit = 30): SearchHit[] {
   const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -75,7 +75,10 @@ export function search(project: Project, query: string, limit = 30): SearchHit[]
     }
   }
   ports.sort((x, y) => Number(y.exact) - Number(x.exact));
-  hits.push(...ports.map(({ exact: _exact, ...hit }) => hit as SearchHit));
+  const strip = ({ exact: _exact, ...hit }: SearchHit & { exact: boolean }) => hit as SearchHit;
+  // A query naming an exact port ("pp-a01 12") is after that port, so it goes above everything else.
+  const exact = ports.filter((p) => p.exact).map(strip);
+  const rest = ports.filter((p) => !p.exact).map(strip);
 
-  return hits.slice(0, limit);
+  return [...exact, ...hits, ...rest].slice(0, limit);
 }

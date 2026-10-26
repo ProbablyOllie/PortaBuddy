@@ -8,6 +8,8 @@ import type { Cable, Device, DeviceTemplate, Face, PortRef, PortType, Project, R
 export type CableMode = 'show' | 'dim' | 'hide';
 /** Which sides of the racks are drawn. */
 export type ViewMode = Face | 'both';
+/** Which layout to use: automatic picks the mobile one on narrow screens. */
+export type LayoutPref = 'auto' | 'mobile' | 'desktop';
 
 const HISTORY_LIMIT = 100;
 
@@ -40,6 +42,7 @@ interface State {
   bulkPatch: { from?: string } | null;
   libraryOpen: boolean;
   inspectorOpen: boolean;
+  layoutPref: LayoutPref;
   /** Last cable style used, so consecutive patch leads keep the same look. */
   lastCable: Pick<Cable, 'type' | 'color'> | null;
   message: string | null;
@@ -56,6 +59,7 @@ interface State {
   setCableMode: (m: CableMode) => void;
   setView: (v: ViewMode) => void;
   togglePanel: (panel: 'library' | 'inspector') => void;
+  setLayoutPref: (p: LayoutPref) => void;
   flash: (msg: string | null) => void;
   undo: () => void;
   redo: () => void;
@@ -192,6 +196,7 @@ export const useStore = create<State>()(
         bulkPatch: null,
         libraryOpen: true,
         inspectorOpen: true,
+        layoutPref: 'auto',
         lastCable: null,
         message: null,
 
@@ -204,6 +209,7 @@ export const useStore = create<State>()(
         openBulkPatch: (bulkPatch) => set({ bulkPatch }),
         setCableMode: (cableMode) => set({ cableMode }),
         setView: (view) => set({ view }),
+        setLayoutPref: (layoutPref) => set({ layoutPref }),
         togglePanel: (panel) =>
           panel === 'library' ? set({ libraryOpen: !get().libraryOpen }) : set({ inspectorOpen: !get().inspectorOpen }),
         flash: (message) => set({ message }),
@@ -507,6 +513,7 @@ export const useStore = create<State>()(
         autoFit: s.autoFit,
         libraryOpen: s.libraryOpen,
         inspectorOpen: s.inspectorOpen,
+        layoutPref: s.layoutPref,
       }),
     },
   ),

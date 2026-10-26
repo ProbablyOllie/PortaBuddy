@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { buildWorkbook, cableSheet, downloadBlob, portMapSheet, safeFileName, toCsv } from '../lib/export';
+import { useTouchOrNarrow } from '../lib/useLayout';
+import { backupStatus, exportCsvFile, exportWorkbook, saveBackupFile } from '../lib/fileActions';
 import { hasUnbackedChanges, useStore } from '../store';
-import { timeAgo } from '../lib/time';
 import { SearchBox } from './SearchBox';
 
 export function Toolbar() {
@@ -11,7 +11,8 @@ export function Toolbar() {
   const fileSavedAt = useStore((s) => s.fileSavedAt);
   const canUndo = useStore((s) => s.past.length > 0);
   const canRedo = useStore((s) => s.future.length > 0);
-  const { setProjectName, openBulkPatch, undo, redo, addRack, showProjects, markFileSaved, flash } = useStore.getState();
+  const { setProjectName, openBulkPatch, undo, redo, addRack, showProjects, setLayoutPref } = useStore.getState();
+  const offerMobile = useTouchOrNarrow();
   const [menu, setMenu] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -22,30 +23,13 @@ export function Toolbar() {
     return () => window.removeEventListener('click', close);
   }, [menu]);
 
-  const base = safeFileName(project.name);
-
   const exportXlsx = async () => {
     setBusy(true);
-    try {
-      downloadBlob(await buildWorkbook(project), `${base}.xlsx`);
-    } catch (err) {
-      console.error(err);
-      flash('Export failed — see the browser console for details.');
-    } finally {
-      setBusy(false);
-    }
+    await exportWorkbook();
+    setBusy(false);
   };
-
-  const exportCsv = (which: 'cables' | 'ports') => {
-    const sheet = which === 'cables' ? cableSheet(project) : portMapSheet(project);
-    // BOM so Excel opens UTF-8 correctly.
-    downloadBlob(new Blob(['﻿' + toCsv(sheet)], { type: 'text/csv;charset=utf-8' }), `${base}_${which}.csv`);
-  };
-
-  const save = () => {
-    downloadBlob(new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' }), `${base}.portabuddy.json`);
-    markFileSaved();
-  };
+  const exportCsv = exportCsvFile;
+  const save = saveBackupFile;
 
   // Re-render every minute so "backed up 3 min ago" stays current.
   const [, tick] = useState(0);
@@ -54,17 +38,7 @@ export function Toolbar() {
     return () => clearInterval(t);
   }, []);
 
-  const status = storageError
-    ? { cls: 'error', text: 'Not saved', title: 'This browser’s storage is full, so recent changes are not saved. Use Save to download a copy now.' }
-    : unbacked
-      ? {
-          cls: 'warn',
-          text: 'Not backed up',
-          title: `Saved in this browser only${fileSavedAt ? ` (last file backup ${timeAgo(fileSavedAt)})` : ''}. Click Save to download a backup file — browser storage can be cleared.`,
-        }
-      : fileSavedAt
-        ? { cls: 'ok', text: `Backed up ${timeAgo(fileSavedAt)}`, title: 'No changes since you last saved a file.' }
-        : { cls: 'ok', text: 'Saved in browser', title: 'Your work is saved automatically in this browser.' };
+  const status = backupStatus({ storageError, unbacked, fileSavedAt });
 
   return (
     <header className="toolbar">
@@ -133,6 +107,11 @@ export function Toolbar() {
         >
           Bulk patch
         </button>
+        {offerMobile ? (
+          <button className="btn" title="Switch to the touch-friendly layout" onClick={() => setLayoutPref('mobile')}>
+            Mobile layout
+          </button>
+        ) : null}
       </div>
 
 </header>

@@ -28,6 +28,14 @@ describe('search', () => {
     expect(hits[0].detail).toBe('C001 → Rack A / U41 core-sw1 / Gi12');
   });
 
+  it('puts an exact port above the device it is on', () => {
+    const { p } = sample();
+    // "1" also matches the device name PP-A01.
+    const hits = search(p, 'pp-a01 1');
+    expect(hits[0]).toMatchObject({ kind: 'port', title: 'PP-A01 · 1' });
+    expect(hits.some((h) => h.kind === 'device')).toBe(true);
+  });
+
   it('ranks exact port names first', () => {
     const { p } = sample();
     const ports = search(p, 'gi1').filter((h) => h.kind === 'port');

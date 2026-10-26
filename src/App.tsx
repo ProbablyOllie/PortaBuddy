@@ -5,6 +5,8 @@ import { Inspector } from './components/Inspector';
 import { Library } from './components/Library';
 import { ProjectsDialog } from './components/ProjectsDialog';
 import { Toolbar } from './components/Toolbar';
+import { useMobileLayout } from './lib/useLayout';
+import { MobileApp } from './mobile/MobileApp';
 import { useStore } from './store';
 
 function isTyping(e: KeyboardEvent) {
@@ -31,12 +33,13 @@ export function App() {
   const bulkPatch = useStore((s) => s.bulkPatch);
   const openBulkPatch = useStore((s) => s.openBulkPatch);
   const projectsOpen = useStore((s) => s.projectsOpen);
+  const mobile = useMobileLayout();
 
   useEffect(() => {
-    if (!message) return;
+    if (!message || mobile) return;
     const t = setTimeout(() => flash(null), 3500);
     return () => clearTimeout(t);
-  }, [message, flash]);
+  }, [message, flash, mobile]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -67,9 +70,12 @@ export function App() {
         }
       }
     };
+    if (mobile) return;
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [mobile]);
+
+  if (mobile) return <MobileApp />;
 
   return (
     <div className="app">

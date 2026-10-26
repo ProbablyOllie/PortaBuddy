@@ -51,6 +51,26 @@ dragging between ports, and export the result as an Excel workbook for your docu
 - Undo/redo, zoom, show/dim/hide cables for busy racks, and collapsible side panels for more
   room.
 
+## Phones and tablets
+
+On screens narrower than 820px PortaBuddy switches to a touch layout built for standing in front
+of the cabinet:
+
+- **Rack** – each rack as a tappable list (front or rear), with free space shown as runs of
+  units you can tap to add a device there.
+- **Device** – every port as a large tile, coloured by its cable. Tap a port to see where it goes
+  (and jump there), edit the cable, move this end, or unpatch it; tap a free port and then a port
+  on another device to patch it — no dragging needed. Bulk patch, position, facing, depth and
+  notes are on the same screen.
+- **Cables** – the full cable list with a filter; **More** – projects, backup file, exports,
+  bulk patch and adding racks.
+- Search, Undo and Save are always in the top bar, and the phone's Back button/gesture closes
+  sheets and screens.
+
+The layout can be switched by hand (*More → Use the desktop layout*, or *Mobile layout* in the
+desktop toolbar on touch screens) — handy on tablets. The site can also be added to the home
+screen.
+
 ## Getting started
 
 Requires Node.js 20.19+ (22 recommended).
