@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { BulkPatch } from './components/BulkPatch';
 import { Canvas } from './components/Canvas';
 import { Inspector } from './components/Inspector';
 import { Library } from './components/Library';
@@ -26,6 +27,8 @@ export function App() {
   const libraryOpen = useStore((s) => s.libraryOpen);
   const inspectorOpen = useStore((s) => s.inspectorOpen);
   const togglePanel = useStore((s) => s.togglePanel);
+  const bulkPatch = useStore((s) => s.bulkPatch);
+  const openBulkPatch = useStore((s) => s.openBulkPatch);
 
   useEffect(() => {
     if (!message) return;
@@ -77,6 +80,7 @@ export function App() {
         <Canvas />
         {inspectorOpen ? <Inspector /> : <PanelStrip side="right" label="Properties / Cables" onOpen={() => togglePanel('inspector')} />}
       </div>
+      {bulkPatch ? <BulkPatch initialFrom={bulkPatch.from} onClose={() => openBulkPatch(null)} /> : null}
       {message ? (
         <div className="toast" role="status" onClick={() => flash(null)}>
           {message}

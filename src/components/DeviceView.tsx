@@ -1,6 +1,6 @@
-import { memo, type PointerEvent } from 'react';
+import { memo, useEffect, useRef, useState, type PointerEvent } from 'react';
 import { endDrag, startDrag } from '../lib/dnd';
-import { GROUP_GAP, HANDLE_W, U_PX, portSize } from '../lib/layout';
+import { GROUP_GAP, HANDLE_W, portSize } from '../lib/layout';
 import { groupColumns, groupsOn, portCell } from '../lib/project';
 import { PORT_TYPE_LABELS } from '../lib/templates';
 import type { Cable, Device, Face } from '../lib/types';
@@ -11,7 +11,8 @@ interface Props {
   device: Device;
   /** Side of the rack being drawn. */
   face: Face;
-  rackHeightU: number;
+  /** Position and height within the rack, from the rack layout. */
+  box: { top: number; height: number };
   /** portId -> cable, for every connected port in the project. */
   cables: Map<string, Cable>;
   /** Human readable description of the far end, per connected portId. */
@@ -20,13 +21,16 @@ interface Props {
   selectedCableId: string | null;
 }
 
-export const DeviceView = memo(function DeviceView({ device, face, rackHeightU, cables, peers, selected, selectedCableId }: Props) {
+export const DeviceView = memo(function DeviceView({ device, face, box, cables, peers, selected, selectedCableId }: Props) {
   const select = useStore((s) => s.select);
+  const startRename = useStore((s) => s.startRename);
+  const updateDevice = useStore((s) => s.updateDevice);
+  // In Both view a full-depth device is drawn twice; edit its name only on the side it faces.
+  const renaming = useStore((s) => s.renamingId === device.id && (s.view !== 'both' || device.facing === face));
   const shown = groupsOn(device, face);
   const { w, h } = portSize(device, shown.map((x) => x.group));
   // Seeing the back of a full-depth device (e.g. a server's rear from the rear of the rack).
   const backSide = device.facing !== face;
-  const top = (rackHeightU - (device.positionU + device.heightU - 1)) * U_PX;
   const showNumbers = w >= 15 && h >= 12;
 
   const onPortDown = (e: PointerEvent, portId: string) => {
@@ -39,7 +43,9 @@ export const DeviceView = memo(function DeviceView({ device, face, rackHeightU, 
   return (
     <div
       className={`device cat-${device.category}${selected ? ' selected' : ''}${backSide ? ' back' : ''}${device.fullDepth ? '' : ' half'}`}
-      style={{ top, height: device.heightU * U_PX }}
+      style={{ top: box.top, height: box.height }}
+      data-device-el={device.id}
+      data-face={face}
       onClick={(e) => {
         e.stopPropagation();
         if (!clickSuppressed()) select({ kind: 'device', id: device.id });
@@ -48,8 +54,13 @@ export const DeviceView = memo(function DeviceView({ device, face, rackHeightU, 
       <div
         className="device-handle"
         style={{ width: HANDLE_W }}
-        draggable
-        title={`Drag to move this device${backSide ? ' (rear of device)' : ''}`}
+        draggable={!renaming}
+        title={`Drag to move this device · double-click to rename${backSide ? ' · rear of device' : ''}`}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          startRename(device.id);
+          if (backSide) select({ kind: 'device', id: device.id });
+        }}
         onDragStart={(e) => {
           const rect = e.currentTarget.getBoundingClientRect();
           const grabOffsetU = Math.floor(((e.clientY - rect.top) / rect.height) * device.heightU);
@@ -65,7 +76,17 @@ export const DeviceView = memo(function DeviceView({ device, face, rackHeightU, 
         }}
         onDragEnd={endDrag}
       >
-        <span className="device-name">{device.name}</span>
+        {renaming ? (
+          <RenameInput
+            initial={device.name}
+            onDone={(name) => {
+              startRename(null);
+              if (name !== null && name.trim() && name.trim() !== device.name) updateDevice(device.id, { name: name.trim() });
+            }}
+          />
+        ) : (
+          <span className="device-name">{device.name}</span>
+        )}
         {device.heightU > 1 || device.name !== device.model || backSide ? (
           <span className="device-model">
             {backSide ? 'Rear · ' : ''}
@@ -116,3 +137,36 @@ export const DeviceView = memo(function DeviceView({ device, face, rackHeightU, 
     </div>
   );
 });
+
+/** In-place name editor: Enter or clicking away saves, Escape cancels (reports null). */
+function RenameInput({ initial, onDone }: { initial: string; onDone: (name: string | null) => void }) {
+  const [value, setValue] = useState(initial);
+  const ref = useRef<HTMLInputElement>(null);
+  const done = useRef(false);
+  const finish = (name: string | null) => {
+    if (done.current) return;
+    done.current = true;
+    onDone(name);
+  };
+  useEffect(() => {
+    ref.current?.focus();
+    ref.current?.select();
+  }, []);
+  return (
+    <input
+      ref={ref}
+      className="rename-input"
+      value={value}
+      aria-label="Device name"
+      onChange={(e) => setValue(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') finish(value);
+        else if (e.key === 'Escape') finish(null);
+      }}
+      onBlur={() => finish(value)}
+    />
+  );
+}

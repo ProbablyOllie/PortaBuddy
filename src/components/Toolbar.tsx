@@ -1,16 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { buildWorkbook, cableSheet, downloadBlob, portMapSheet, safeFileName, toCsv } from '../lib/export';
 import { parseProject } from '../lib/project';
-import { useStore, type CableMode, type ViewMode } from '../store';
+import { useStore } from '../store';
+import { SearchBox } from './SearchBox';
 
 export function Toolbar() {
   const project = useStore((s) => s.project);
-  const zoom = useStore((s) => s.zoom);
-  const cableMode = useStore((s) => s.cableMode);
-  const view = useStore((s) => s.view);
   const canUndo = useStore((s) => s.past.length > 0);
   const canRedo = useStore((s) => s.future.length > 0);
-  const { setProjectName, setZoom, setCableMode, setView, undo, redo, addRack, newProject, loadProject, flash } = useStore.getState();
+  const { setProjectName, openBulkPatch, undo, redo, addRack, newProject, loadProject, flash } = useStore.getState();
   const fileRef = useRef<HTMLInputElement>(null);
   const [menu, setMenu] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -62,6 +60,7 @@ export function Toolbar() {
         PortaBuddy
       </div>
       <input className="project-name" value={project.name} onChange={(e) => setProjectName(e.target.value)} title="Project name" />
+      <SearchBox />
 
       <div className="tb-group">
         <button
@@ -120,41 +119,18 @@ export function Toolbar() {
         <button className="btn" onClick={addRack}>
           + Rack
         </button>
-      </div>
-
-      <div className="tb-group">
-        <span className="tb-label">View</span>
-        <div className="seg">
-          {(['front', 'rear', 'both'] as ViewMode[]).map((v) => (
-            <button key={v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>
-              {v[0].toUpperCase() + v.slice(1)}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="tb-group">
-        <span className="tb-label">Cables</span>
-        <div className="seg">
-          {(['show', 'dim', 'hide'] as CableMode[]).map((m) => (
-            <button key={m} className={cableMode === m ? 'on' : ''} onClick={() => setCableMode(m)}>
-              {m[0].toUpperCase() + m.slice(1)}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="tb-group">
-        <button className="btn" onClick={() => setZoom(zoom - 0.1)} title="Zoom out">
-          −
-        </button>
-        <button className="btn zoom-val" onClick={() => setZoom(1)} title="Reset zoom">
-          {Math.round(zoom * 100)}%
-        </button>
-        <button className="btn" onClick={() => setZoom(zoom + 0.1)} title="Zoom in">
-          +
+        <button
+          className="btn"
+          title="Patch a run of ports in one go"
+          onClick={() => {
+            const sel = useStore.getState().selection;
+            openBulkPatch({ from: sel?.kind === 'device' ? sel.id : undefined });
+          }}
+        >
+          Bulk patch
         </button>
       </div>
-    </header>
+
+</header>
   );
 }
