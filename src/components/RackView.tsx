@@ -1,6 +1,6 @@
-import { useEffect, useState, type DragEvent } from 'react';
+import { useEffect, useMemo, useState, type DragEvent } from 'react';
 import { MIME, currentDrag, endDrag, type DragPayload } from '../lib/dnd';
-import { FACE_W, U_PX } from '../lib/layout';
+import { FACE_W, rackLayout, spanBox, uAtY, type RackLayout } from '../lib/layout';
 import { canPlace, otherFace, visibleOn } from '../lib/project';
 import type { Cable, Face, Rack } from '../lib/types';
 import { useStore } from '../store';
@@ -15,23 +15,30 @@ interface Props {
 
 export function RackView({ rack, cables, peers }: Props) {
   const view = useStore((s) => s.view);
+  const compact = useStore((s) => s.compact);
+  const devices = useStore((s) => s.project.devices);
   const selection = useStore((s) => s.selection);
   const select = useStore((s) => s.select);
   const faces: Face[] = view === 'both' ? ['front', 'rear'] : [view];
+  const inRack = useMemo(() => devices.filter((d) => d.rackId === rack.id), [devices, rack.id]);
+  // Shared by both faces so the front and rear of the rack line up.
+  const layout = useMemo(() => rackLayout(rack.heightU, inRack, compact), [rack.heightU, inRack, compact]);
+  // Units with something mounted on either side.
+  const usedU = useMemo(() => new Set(inRack.flatMap((d) => Array.from({ length: d.heightU }, (_, i) => d.positionU + i))).size, [inRack]);
   const rackSelected = selection?.kind === 'rack' && selection.id === rack.id;
 
   return (
-    <div className={`rack${rackSelected ? ' selected' : ''}`}>
+    <div className={`rack${rackSelected ? ' selected' : ''}`} data-rack-id={rack.id}>
       <button className="rack-header" onClick={() => select({ kind: 'rack', id: rack.id })} title="Rack properties">
         <span className="rack-name">{rack.name}</span>
         <span className="rack-meta">
           {rack.location ? `${rack.location} · ` : ''}
-          {rack.heightU}U
+          {usedU}/{rack.heightU}U used
         </span>
       </button>
       <div className="rack-faces">
         {faces.map((face) => (
-          <RackFace key={face} rack={rack} face={face} cables={cables} peers={peers} />
+          <RackFace key={face} rack={rack} face={face} layout={layout} cables={cables} peers={peers} />
         ))}
       </div>
     </div>
@@ -40,9 +47,10 @@ export function RackView({ rack, cables, peers }: Props) {
 
 interface FaceProps extends Props {
   face: Face;
+  layout: RackLayout;
 }
 
-function RackFace({ rack, face, cables, peers }: FaceProps) {
+function RackFace({ rack, face, layout, cables, peers }: FaceProps) {
   const project = useStore((s) => s.project);
   const selection = useStore((s) => s.selection);
   const select = useStore((s) => s.select);
@@ -73,9 +81,9 @@ function RackFace({ rack, face, cables, peers }: FaceProps) {
   const targetFor = (e: DragEvent, payload: DragPayload) => {
     const rect = e.currentTarget.getBoundingClientRect();
     // Ratio-based so it stays correct at any zoom level.
-    const fromTop = Math.floor(((e.clientY - rect.top) / rect.height) * rack.heightU);
+    const pointerU = uAtY(layout, ((e.clientY - rect.top) / rect.height) * layout.total);
     const grab = payload.kind === 'device' ? payload.grabOffsetU : 0;
-    const topU = rack.heightU - fromTop + grab;
+    const topU = pointerU + grab;
     const positionU = Math.max(1, Math.min(rack.heightU - payload.heightU + 1, topU - payload.heightU + 1));
     const ignore = payload.kind === 'device' ? payload.deviceId : undefined;
     const mount = { heightU: payload.heightU, positionU, facing: facingFor(payload), fullDepth: payload.fullDepth };
@@ -117,12 +125,13 @@ function RackFace({ rack, face, cables, peers }: FaceProps) {
   const rail = (
     <div className="rail">
       {units.map((u) => (
-        <div key={u} className="rail-u" style={{ height: U_PX }}>
+        <div key={u} className={`rail-u${layout.heights[u] < 20 ? ' short' : ''}`} style={{ height: layout.heights[u] }}>
           {u}
         </div>
       ))}
     </div>
   );
+  const ghostBox = ghost ? spanBox(layout, ghost.positionU, ghost.heightU) : null;
 
   return (
     <div className={`rack-face face-${face}`}>
@@ -131,7 +140,7 @@ function RackFace({ rack, face, cables, peers }: FaceProps) {
         {rail}
         <div
           className="rack-slots"
-          style={{ width: FACE_W, height: rack.heightU * U_PX, backgroundSize: `100% ${U_PX}px` }}
+          style={{ width: FACE_W, height: layout.total }}
           onDragOver={onDragOver}
           onDragLeave={(e) => {
             if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setGhost(null);
@@ -142,23 +151,23 @@ function RackFace({ rack, face, cables, peers }: FaceProps) {
             if (!clickSuppressed()) select(null);
           }}
         >
+          {units.map((u) => (
+            <div key={u} className="slot-u" style={{ top: layout.tops[u], height: layout.heights[u] }} />
+          ))}
           {devices.map((d) => (
             <DeviceView
               key={d.id}
               device={d}
               face={face}
-              rackHeightU={rack.heightU}
+              box={spanBox(layout, d.positionU, d.heightU)}
               cables={cables}
               peers={peers}
               selected={selection?.kind === 'device' && selection.id === d.id}
               selectedCableId={selectedCableId}
             />
           ))}
-          {ghost ? (
-            <div
-              className={`ghost${ghost.ok ? '' : ' bad'}`}
-              style={{ top: (rack.heightU - (ghost.positionU + ghost.heightU - 1)) * U_PX, height: ghost.heightU * U_PX }}
-            >
+          {ghost && ghostBox ? (
+            <div className={`ghost${ghost.ok ? '' : ' bad'}`} style={{ top: ghostBox.top, height: Math.max(ghostBox.height, 18) }}>
               U{ghost.positionU}
               {ghost.heightU > 1 ? `–U${ghost.positionU + ghost.heightU - 1}` : ''}
             </div>

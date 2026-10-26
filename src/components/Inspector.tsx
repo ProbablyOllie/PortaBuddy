@@ -54,6 +54,9 @@ function Overview() {
       <ol className="help">
         <li>Drag devices from the library on the left into a rack. Drag a device by its label to move it.</li>
         <li>Press on a port and drag to another port to run a cable between them — across racks too.</li>
+        <li>
+          Patching a whole panel? Use <b>Bulk patch</b> to connect a run of ports (e.g. 1–24 to Gi1–24) in one go.
+        </li>
         <li>Drag the end of an existing cable to a different port to re-patch it.</li>
         <li>
           Switch between <b>Front</b>, <b>Rear</b> and <b>Both</b> views in the toolbar. Server NICs and power supplies are on the rear;
@@ -68,7 +71,7 @@ function Overview() {
         Your work is saved automatically in this browser. Use <b>Save</b> to keep a project file you can share or re-open elsewhere.
       </p>
       <p className="hint">
-        Shortcuts: Delete removes the selection, Ctrl+Z / Ctrl+Shift+Z undo and redo, Esc cancels, [ and ] hide or show the side panels.
+        Shortcuts: Delete removes the selection, Ctrl+Z / Ctrl+Shift+Z undo and redo, Esc cancels, / or Ctrl+K searches, [ and ] hide or show the side panels. Double-click a device label to rename it.
       </p>
     </div>
   );
@@ -151,6 +154,7 @@ function DeviceProps({ id }: { id: string }) {
   const renamePort = useStore((s) => s.renamePort);
   const removeDevice = useStore((s) => s.removeDevice);
   const setDeviceMount = useStore((s) => s.setDeviceMount);
+  const openBulkPatch = useStore((s) => s.openBulkPatch);
   const duplicateDevice = useStore((s) => s.duplicateDevice);
   const select = useStore((s) => s.select);
   const index = useMemo(() => cableIndex(project.cables), [project.cables]);
@@ -192,6 +196,11 @@ function DeviceProps({ id }: { id: string }) {
         <textarea rows={2} value={device.notes} placeholder="Serial, asset tag, IP…" onChange={(e) => updateDevice(id, { notes: e.target.value })} />
       </label>
       <div className="row-buttons">
+        {allPorts.length ? (
+          <button className="btn" onClick={() => openBulkPatch({ from: id })}>
+            Bulk patch…
+          </button>
+        ) : null}
         <button className="btn" onClick={() => duplicateDevice(id)}>
           Duplicate
         </button>

@@ -89,6 +89,36 @@ describe('store', () => {
     expect(s().project.devices.find((d) => d.id === pp.id)).toMatchObject({ positionU: 30, facing: 'rear' });
   });
 
+  it('bulk patches a run of ports as one undo step, skipping clashes', () => {
+    const { sw, pp, pdu } = setup();
+    const ppPorts = pp.portGroups[0].ports;
+    const swPorts = sw.portGroups[0].ports;
+    // Port 3 is already patched elsewhere.
+    s().connect({ deviceId: pp.id, portId: ppPorts[2].id }, { deviceId: sw.id, portId: swPorts[20].id });
+    const before = s().past.length;
+    const pairs = ppPorts.slice(0, 6).map((p, i) => [{ deviceId: pp.id, portId: p.id }, { deviceId: sw.id, portId: swPorts[i].id }] as [
+      { deviceId: string; portId: string },
+      { deviceId: string; portId: string },
+    ]);
+    // A power outlet can't take a data lead.
+    pairs.push([{ deviceId: pdu.id, portId: pdu.portGroups[0].ports[0].id }, { deviceId: sw.id, portId: swPorts[10].id }]);
+    const r = s().connectMany(pairs, { type: 'Cat6a', color: '#16a34a' });
+    expect(r).toEqual({ created: 5, skipped: 2 });
+    expect(s().past.length).toBe(before + 1);
+    const labels = s().project.cables.map((c) => c.label);
+    expect(labels).toEqual(['C001', 'C002', 'C003', 'C004', 'C005', 'C006']);
+    expect(s().project.cables.at(-1)).toMatchObject({ type: 'Cat6a', color: '#16a34a' });
+    s().undo();
+    expect(s().project.cables).toHaveLength(1);
+  });
+
+  it('asks for a name when a device is dropped in', () => {
+    s().newProject();
+    const rackId = s().project.racks[0].id;
+    s().placeDevice('sw-24', rackId, 10);
+    expect(s().renamingId).toBe(s().project.devices[0].id);
+  });
+
   it('duplicates a device with fresh port ids', () => {
     const { sw } = setup();
     s().duplicateDevice(sw.id);

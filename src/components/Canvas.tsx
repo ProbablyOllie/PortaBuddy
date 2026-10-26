@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { cableIndex, describePort } from '../lib/project';
 import type { PortRef } from '../lib/types';
-import { useStore } from '../store';
+import { useStore, type CableMode, type ViewMode } from '../store';
 import { beginWiring, clickSuppressed, portUnder, suppressNextClick, useWiring } from '../wiring';
 import { RackView } from './RackView';
 
@@ -20,6 +20,8 @@ export function Canvas() {
   const zoom = useStore((s) => s.zoom);
   const cableMode = useStore((s) => s.cableMode);
   const view = useStore((s) => s.view);
+  const compact = useStore((s) => s.compact);
+  const autoFit = useStore((s) => s.autoFit);
   const selection = useStore((s) => s.selection);
   const select = useStore((s) => s.select);
   const addRack = useStore((s) => s.addRack);
@@ -62,14 +64,40 @@ export function Canvas() {
     setSize({ w: Math.ceil(cr.right - o.x), h: Math.ceil(cr.bottom - o.y) });
   }, [origin]);
 
-  useLayoutEffect(measure, [project, zoom, view, measure]);
+  useLayoutEffect(measure, [project, zoom, view, compact, measure]);
+
+  /** Zoom at which the tallest rack fits the visible height (never above 100%). */
+  const fitZoomFor = useCallback(() => {
+    const scroll = scrollRef.current;
+    const content = contentRef.current;
+    if (!scroll || !content) return null;
+    const racks = content.querySelectorAll<HTMLElement>('.rack');
+    if (!racks.length) return null;
+    const top = content.getBoundingClientRect().top;
+    const bottom = Math.max(...[...racks].map((r) => r.getBoundingClientRect().bottom));
+    const natural = (bottom - top) / zoom + 64; // unzoomed height incl. top padding and room for the floating bars
+    return Math.max(0.4, Math.min(1, Math.floor((scroll.clientHeight / natural) * 100) / 100));
+  }, [zoom]);
+
+  // Keep the cabinet fitted to the window until the user picks a zoom themselves.
+  useLayoutEffect(() => {
+    if (!autoFit) return;
+    const z = fitZoomFor();
+    if (z !== null && Math.abs(z - zoom) >= 0.01) useStore.getState().fitZoom(z);
+  }, [autoFit, project, view, compact, zoom, fitZoomFor]);
 
   useEffect(() => {
-    const ro = new ResizeObserver(() => measure());
+    const ro = new ResizeObserver(() => {
+      measure();
+      const s = useStore.getState();
+      if (!s.autoFit) return;
+      const z = fitZoomFor();
+      if (z !== null && Math.abs(z - s.zoom) >= 0.01) s.fitZoom(z);
+    });
     if (contentRef.current) ro.observe(contentRef.current);
     if (scrollRef.current) ro.observe(scrollRef.current);
     return () => ro.disconnect();
-  }, [measure]);
+  }, [measure, fitZoomFor]);
 
   // Pointer tracking while a patch lead is being dragged from a port.
   const active = wiring !== null;
@@ -160,71 +188,124 @@ export function Canvas() {
   }
 
   return (
-    <div className="canvas" ref={scrollRef} onClick={() => !clickSuppressed() && select(null)}>
-      <div className="canvas-content" ref={contentRef} style={{ zoom }}>
-        {project.racks.map((rack) => (
-          <RackView key={rack.id} rack={rack} cables={cables} peers={peers} />
+    <div className="canvas-wrap">
+      <ViewControls />
+      <div className="canvas" ref={scrollRef} onClick={() => !clickSuppressed() && select(null)}>
+        <div className="canvas-content" ref={contentRef} style={{ zoom }}>
+          {project.racks.map((rack) => (
+            <RackView key={rack.id} rack={rack} cables={cables} peers={peers} />
+          ))}
+          <button
+            className="add-rack"
+            onClick={(e) => {
+              e.stopPropagation();
+              addRack();
+            }}
+          >
+            + Add rack
+          </button>
+        </div>
+        <svg className={`cable-layer mode-${cableMode}${wiring ? ' wiring' : ''}`} width={size.w} height={size.h}>
+          {ordered.map((c) => {
+            if (wiring?.moved && wiring.cableId === c.id) return null;
+            const pa = positions.get(c.a.portId);
+            const pb = positions.get(c.b.portId);
+            if (!pa && !pb) return null;
+            const sel = c.id === selectedCableId;
+            if (cableMode === 'hide' && !sel) return null;
+            // One end is on the side of the rack that isn't shown: draw a short lead disappearing behind.
+            const stub = !pa || !pb;
+            const a = (pa ?? pb)!;
+            const b = stub ? { x: a.x + 10, y: a.y + 22 } : pb!;
+            const d = stub ? `M${a.x},${a.y} Q${a.x},${b.y} ${b.x},${b.y}` : cablePath(a, b);
+            return (
+              <g
+                key={c.id}
+                className={`cable${sel ? ' sel' : ''}${stub ? ' stub' : ''}`}
+                onPointerDown={(e) => {
+                  // Cable ends sit on top of their ports: pressing there picks up the cable end.
+                  const el = e.button === 0 ? portUnder(e.clientX, e.clientY) : null;
+                  if (!el) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  beginWiring(e.clientX, e.clientY, { deviceId: el.dataset.deviceId!, portId: el.dataset.portId! });
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!clickSuppressed()) select({ kind: 'cable', id: c.id });
+                }}
+              >
+                <title>{`${c.label} · ${c.type}\n${describePort(project, c.a)}\n→ ${describePort(project, c.b)}${stub ? '\n(other end is on the other side of the rack)' : ''}`}</title>
+                <path className="cable-hit" d={d} />
+                <path className="cable-outline" d={d} />
+                <path className="cable-line" d={d} stroke={c.color} />
+                <circle className="cable-end" cx={a.x} cy={a.y} r={3} fill={c.color} />
+                {stub ? (
+                  <circle className="cable-stub-end" cx={b.x} cy={b.y} r={3.5} stroke={c.color} />
+                ) : (
+                  <circle className="cable-end" cx={b.x} cy={b.y} r={3} fill={c.color} />
+                )}
+              </g>
+            );
+          })}
+          {temp ? (
+            <g className="cable temp">
+              <path className="cable-outline" d={cablePath(temp.a, temp.b)} />
+              <path className="cable-line" d={cablePath(temp.a, temp.b)} stroke={temp.color} />
+            </g>
+          ) : null}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+/** Floating view settings along the bottom of the canvas. */
+function ViewControls() {
+  const zoom = useStore((s) => s.zoom);
+  const autoFit = useStore((s) => s.autoFit);
+  const compact = useStore((s) => s.compact);
+  const view = useStore((s) => s.view);
+  const cableMode = useStore((s) => s.cableMode);
+  const { setZoom, setAutoFit, setCompact, setView, setCableMode } = useStore.getState();
+  return (
+    <>
+      <div className="view-controls left" onClick={(e) => e.stopPropagation()}>
+        <span className="vc-label">Side</span>
+        {(['front', 'rear', 'both'] as ViewMode[]).map((v) => (
+          <button key={v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>
+            {v[0].toUpperCase() + v.slice(1)}
+          </button>
         ))}
+        <span className="vc-sep" />
+        <span className="vc-label">Cables</span>
+        {(['show', 'dim', 'hide'] as CableMode[]).map((m) => (
+          <button key={m} className={cableMode === m ? 'on' : ''} onClick={() => setCableMode(m)}>
+            {m[0].toUpperCase() + m.slice(1)}
+          </button>
+        ))}
+      </div>
+      <div className="view-controls" onClick={(e) => e.stopPropagation()}>
+        <button onClick={() => setZoom(zoom - 0.1)} title="Zoom out">
+          −
+        </button>
+        <span className="zoom-val" title="Current zoom">
+          {Math.round(zoom * 100)}%
+        </span>
+        <button onClick={() => setZoom(zoom + 0.1)} title="Zoom in">
+          +
+        </button>
+        <button className={autoFit ? 'on' : ''} onClick={() => setAutoFit(true)} title="Fit the racks to the window">
+          Fit
+        </button>
         <button
-          className="add-rack"
-          onClick={(e) => {
-            e.stopPropagation();
-            addRack();
-          }}
+          className={compact ? 'on' : ''}
+          onClick={() => setCompact(!compact)}
+          title={compact ? 'Showing empty rack units small — click to show every U full size' : 'Show empty rack units small to fit more on screen'}
         >
-          + Add rack
+          Compact
         </button>
       </div>
-      <svg className={`cable-layer mode-${cableMode}${wiring ? ' wiring' : ''}`} width={size.w} height={size.h}>
-        {ordered.map((c) => {
-          if (wiring?.moved && wiring.cableId === c.id) return null;
-          const pa = positions.get(c.a.portId);
-          const pb = positions.get(c.b.portId);
-          if (!pa && !pb) return null;
-          const sel = c.id === selectedCableId;
-          if (cableMode === 'hide' && !sel) return null;
-          // One end is on the side of the rack that isn't shown: draw a short lead disappearing behind.
-          const stub = !pa || !pb;
-          const a = (pa ?? pb)!;
-          const b = stub ? { x: a.x + 10, y: a.y + 22 } : pb!;
-          const d = stub ? `M${a.x},${a.y} Q${a.x},${b.y} ${b.x},${b.y}` : cablePath(a, b);
-          return (
-            <g
-              key={c.id}
-              className={`cable${sel ? ' sel' : ''}${stub ? ' stub' : ''}`}
-              onPointerDown={(e) => {
-                // Cable ends sit on top of their ports: pressing there picks up the cable end.
-                const el = e.button === 0 ? portUnder(e.clientX, e.clientY) : null;
-                if (!el) return;
-                e.preventDefault();
-                e.stopPropagation();
-                beginWiring(e.clientX, e.clientY, { deviceId: el.dataset.deviceId!, portId: el.dataset.portId! });
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!clickSuppressed()) select({ kind: 'cable', id: c.id });
-              }}
-            >
-              <title>{`${c.label} · ${c.type}\n${describePort(project, c.a)}\n→ ${describePort(project, c.b)}${stub ? '\n(other end is on the other side of the rack)' : ''}`}</title>
-              <path className="cable-hit" d={d} />
-              <path className="cable-outline" d={d} />
-              <path className="cable-line" d={d} stroke={c.color} />
-              <circle className="cable-end" cx={a.x} cy={a.y} r={3} fill={c.color} />
-              {stub ? (
-                <circle className="cable-stub-end" cx={b.x} cy={b.y} r={3.5} stroke={c.color} />
-              ) : (
-                <circle className="cable-end" cx={b.x} cy={b.y} r={3} fill={c.color} />
-              )}
-            </g>
-          );
-        })}
-        {temp ? (
-          <g className="cable temp">
-            <path className="cable-outline" d={cablePath(temp.a, temp.b)} />
-            <path className="cable-line" d={cablePath(temp.a, temp.b)} stroke={temp.color} />
-          </g>
-        ) : null}
-      </svg>
-    </div>
+    </>
   );
 }

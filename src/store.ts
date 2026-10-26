@@ -18,6 +18,14 @@ interface State {
   zoom: number;
   cableMode: CableMode;
   view: ViewMode;
+  /** Draw empty rack units short so a whole cabinet fits on screen. */
+  compact: boolean;
+  /** Keep the zoom fitted to the window until the user zooms by hand. */
+  autoFit: boolean;
+  /** Device whose name is being edited in place on the rack. */
+  renamingId: string | null;
+  /** Bulk patch dialog, optionally starting from a device. */
+  bulkPatch: { from?: string } | null;
   libraryOpen: boolean;
   inspectorOpen: boolean;
   /** Last cable style used, so consecutive patch leads keep the same look. */
@@ -25,7 +33,14 @@ interface State {
   message: string | null;
 
   select: (s: Selection) => void;
+  /** Zoom chosen by the user; turns off auto-fit. */
   setZoom: (z: number) => void;
+  /** Zoom chosen by auto-fit. */
+  fitZoom: (z: number) => void;
+  setAutoFit: (on: boolean) => void;
+  setCompact: (on: boolean) => void;
+  startRename: (deviceId: string | null) => void;
+  openBulkPatch: (opts: { from?: string } | null) => void;
   setCableMode: (m: CableMode) => void;
   setView: (v: ViewMode) => void;
   togglePanel: (panel: 'library' | 'inspector') => void;
@@ -52,6 +67,8 @@ interface State {
   duplicateDevice: (id: string) => void;
 
   connect: (a: PortRef, b: PortRef) => boolean;
+  /** Patch many port pairs as one undo step. Pairs that can't be patched are skipped. */
+  connectMany: (pairs: [PortRef, PortRef][], style: Pick<Cable, 'type' | 'color'>) => { created: number; skipped: number };
   repatch: (cableId: string, from: PortRef, to: PortRef) => boolean;
   updateCable: (id: string, patch: Partial<Omit<Cable, 'id' | 'a' | 'b'>>) => void;
   removeCable: (id: string) => void;
@@ -61,6 +78,22 @@ interface State {
 }
 
 const isPower = (t: PortType) => t === 'power' || t === 'power-in';
+const clampZoom = (z: number) => Math.min(2, Math.max(0.4, Math.round(z * 100) / 100));
+
+/** Why two ports can't be patched together, or null if they can. `used` holds port ids that already have a cable. */
+export function patchProblem(project: Project, a: PortRef, b: PortRef, used: Set<string>): string | null {
+  if (a.portId === b.portId) return 'same port';
+  const infoA = findPort(project, a);
+  const infoB = findPort(project, b);
+  if (!infoA || !infoB) return 'missing port';
+  if (used.has(a.portId) || used.has(b.portId)) return 'already in use';
+  if (isPower(infoA.type) !== isPower(infoB.type)) return 'power and data mixed';
+  return null;
+}
+
+export function usedPorts(project: Project): Set<string> {
+  return new Set(project.cables.flatMap((c) => [c.a.portId, c.b.portId]));
+}
 
 export function allTemplates(project: Project): DeviceTemplate[] {
   return [...BUILTIN_TEMPLATES, ...project.customTemplates];
@@ -95,13 +128,22 @@ export const useStore = create<State>()(
         zoom: 1,
         cableMode: 'show',
         view: 'front',
+        compact: true,
+        autoFit: true,
+        renamingId: null,
+        bulkPatch: null,
         libraryOpen: true,
         inspectorOpen: true,
         lastCable: null,
         message: null,
 
         select: (selection) => set({ selection }),
-        setZoom: (zoom) => set({ zoom: Math.min(2, Math.max(0.4, Math.round(zoom * 100) / 100)) }),
+        setZoom: (zoom) => set({ zoom: clampZoom(zoom), autoFit: false }),
+        fitZoom: (zoom) => set({ zoom: clampZoom(zoom) }),
+        setAutoFit: (autoFit) => set({ autoFit }),
+        setCompact: (compact) => set({ compact }),
+        startRename: (renamingId) => set({ renamingId }),
+        openBulkPatch: (bulkPatch) => set({ bulkPatch }),
         setCableMode: (cableMode) => set({ cableMode }),
         setView: (view) => set({ view }),
         togglePanel: (panel) =>
@@ -173,7 +215,7 @@ export const useStore = create<State>()(
           const sameModel = p.devices.filter((d) => d.model === t.name).length;
           const device = createDevice(t, rackId, positionU, sameModel ? `${t.name} ${sameModel + 1}` : t.name, side);
           commit((pr) => ({ ...pr, devices: [...pr.devices, device] }));
-          set({ selection: { kind: 'device', id: device.id } });
+          set({ selection: { kind: 'device', id: device.id }, renamingId: device.id });
           return true;
         },
         moveDevice: (deviceId, rackId, positionU, facing) => {
@@ -279,6 +321,26 @@ export const useStore = create<State>()(
           set({ selection: { kind: 'cable', id: cable.id } });
           return true;
         },
+        connectMany: (pairs, style) => {
+          const p = get().project;
+          const used = usedPorts(p);
+          const cables: Cable[] = [];
+          let next = Number(/^C(\d+)$/.exec(nextCableLabel(p))![1]);
+          for (const [a, b] of pairs) {
+            if (patchProblem(p, a, b, used)) continue;
+            used.add(a.portId);
+            used.add(b.portId);
+            const power = isPower(findPort(p, a)!.type);
+            const look = power ? defaultCableFor('power') : style;
+            const label = `C${String(next++).padStart(3, '0')}`;
+            cables.push({ id: uid('cab'), label, a, b, type: look.type, color: look.color, lengthM: '', notes: '' });
+          }
+          if (cables.length) {
+            commit((pr) => ({ ...pr, cables: [...pr.cables, ...cables] }));
+            if (style.type !== 'Power') set({ lastCable: { type: style.type, color: style.color } });
+          }
+          return { created: cables.length, skipped: pairs.length - cables.length };
+        },
         repatch: (cableId, from, to) => {
           const p = get().project;
           const cable = p.cables.find((c) => c.id === cableId);
@@ -335,11 +397,13 @@ export const useStore = create<State>()(
         zoom: s.zoom,
         cableMode: s.cableMode,
         view: s.view,
+        compact: s.compact,
+        autoFit: s.autoFit,
         libraryOpen: s.libraryOpen,
         inspectorOpen: s.inspectorOpen,
       }),
       migrate: (persisted, version) => {
-        const state = persisted as Pick<State, 'project' | 'zoom' | 'cableMode' | 'view' | 'libraryOpen' | 'inspectorOpen'>;
+        const state = persisted as Pick<State, 'project' | 'zoom' | 'cableMode' | 'view' | 'compact' | 'autoFit' | 'libraryOpen' | 'inspectorOpen'>;
         if (version < 2 && state.project) {
           try {
             return { ...state, project: parseProject(state.project) };
