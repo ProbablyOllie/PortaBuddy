@@ -39,7 +39,15 @@ dragging between ports, and export the result as an Excel workbook for your docu
     port, side), *Port Map* (every port, free/connected, far end), *Devices* (incl. facing and
     depth), and *Rack Elevations* (front and rear of each rack).
   - **CSV** cable schedule or port map.
-- **Save / Open** projects as `.portabuddy.json` files; work is also autosaved in the browser.
+- **Projects** – keep as many projects (cabinets, sites) as you like in the browser. *New* and
+  *Open file* add a project rather than replacing the one you were working on; projects can be
+  duplicated and deleted.
+- **Version history** – a version of each project is kept every few minutes while you work (up to
+  20); restore any of them from *Projects* (restoring can itself be undone).
+- **Backups** – *Save* downloads a `.portabuddy.json` file. The toolbar shows whether the open
+  project has changes that are only in this browser ("Not backed up"), and the browser asks before
+  closing the tab in that case (can be turned off). If browser storage fills up, old versions are
+  dropped first, and the toolbar warns if the project itself can no longer be saved.
 - Undo/redo, zoom, show/dim/hide cables for busy racks, and collapsible side panels for more
   room.
 

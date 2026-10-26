@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { useStore } from '../../store';
+import { flushSave, hasUnbackedChanges, useStore } from '../../store';
+import { library } from '../library';
+import { emptyProject } from '../project';
 
 const s = () => useStore.getState();
 
@@ -117,6 +119,59 @@ describe('store', () => {
     const rackId = s().project.racks[0].id;
     s().placeDevice('sw-24', rackId, 10);
     expect(s().renamingId).toBe(s().project.devices[0].id);
+  });
+
+  it('keeps the previous project when starting or opening another', () => {
+    const { sw } = setup();
+    const firstId = s().projectId;
+    s().setProjectName('Comms room');
+    s().newProject();
+    expect(s().projectId).not.toBe(firstId);
+    expect(s().project.devices).toHaveLength(0);
+    expect(s().past).toHaveLength(0);
+    // The first project is still in the library with its devices.
+    expect(library.load(firstId)!.name).toBe('Comms room');
+    expect(library.load(firstId)!.devices.some((d) => d.id === sw.id)).toBe(true);
+    s().importProject({ ...emptyProject(), name: 'From file' });
+    expect(s().project.name).toBe('From file');
+    expect(hasUnbackedChanges(s())).toBe(false); // it came from a file
+    s().openProject(firstId);
+    expect(s().project.name).toBe('Comms room');
+  });
+
+  it('flags changes that are not backed up to a file', () => {
+    setup();
+    expect(hasUnbackedChanges(s())).toBe(true);
+    s().markFileSaved();
+    expect(hasUnbackedChanges(s())).toBe(false);
+    // An edit a moment later counts again.
+    const later = Date.now() + 5;
+    while (Date.now() < later) {
+      /* wait for the clock to move */
+    }
+    s().setProjectName('changed');
+    expect(hasUnbackedChanges(s())).toBe(true);
+  });
+
+  it('restores an earlier version as an undoable change', () => {
+    setup();
+    flushSave();
+    const id = s().projectId;
+    library.addVersion(id, { ...emptyProject(), name: 'Earlier' });
+    const at = library.versions(id).at(-1)!.at;
+    const devicesNow = s().project.devices.length;
+    s().restoreVersion(at);
+    expect(s().project.name).toBe('Earlier');
+    s().undo();
+    expect(s().project.devices).toHaveLength(devicesNow);
+  });
+
+  it('deleting the open project switches to another', () => {
+    setup();
+    const doomed = s().projectId;
+    s().deleteProject(doomed);
+    expect(s().projectId).not.toBe(doomed);
+    expect(library.load(doomed)).toBeNull();
   });
 
   it('duplicates a device with fresh port ids', () => {

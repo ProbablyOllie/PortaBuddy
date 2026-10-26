@@ -59,7 +59,7 @@ function Overview() {
         </li>
         <li>Drag the end of an existing cable to a different port to re-patch it.</li>
         <li>
-          Switch between <b>Front</b>, <b>Rear</b> and <b>Both</b> views in the toolbar. Server NICs and power supplies are on the rear;
+          Switch between <b>Front</b>, <b>Rear</b> and <b>Both</b> views with the Side buttons below the racks. Server NICs and power supplies are on the rear;
           use <b>Both</b> to run cables from front to rear.
         </li>
         <li>Click a cable, device or rack header to edit its details here.</li>
@@ -68,7 +68,8 @@ function Overview() {
         </li>
       </ol>
       <p className="hint">
-        Your work is saved automatically in this browser. Use <b>Save</b> to keep a project file you can share or re-open elsewhere.
+        Your work is saved automatically in this browser, with earlier versions under <b>Projects</b>. Use <b>Save</b> to download a backup
+        file you can share or re-open elsewhere — browser storage can be cleared.
       </p>
       <p className="hint">
         Shortcuts: Delete removes the selection, Ctrl+Z / Ctrl+Shift+Z undo and redo, Esc cancels, / or Ctrl+K searches, [ and ] hide or show the side panels. Double-click a device label to rename it.
