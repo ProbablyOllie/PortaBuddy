@@ -18,6 +18,8 @@ export function Library() {
   const flash = useStore((s) => s.flash);
   const view = useStore((s) => s.view);
   const togglePanel = useStore((s) => s.togglePanel);
+  const armedTemplate = useStore((s) => (s.armed?.kind === 'place' ? s.armed.templateId : null));
+  const arm = useStore((s) => s.arm);
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<DeviceTemplate | 'new' | null>(null);
 
@@ -53,7 +55,7 @@ export function Library() {
         </button>
       </div>
       <input className="search" placeholder="Search devices…" value={query} onChange={(e) => setQuery(e.target.value)} />
-      <p className="hint">Drag a device into a rack. Double-click to drop it in the next free slot.</p>
+      <p className="hint">Drag a device into a rack, or tap it and then tap a spot in a rack. Double-click drops it in the next free slot.</p>
       <div className="library-list">
         {groups.map(([cat, templates]) => (
           <section key={cat}>
@@ -61,12 +63,17 @@ export function Library() {
             {templates.map((t) => (
               <div
                 key={t.id}
-                className={`template cat-${t.category}`}
+                className={`template cat-${t.category}${armedTemplate === t.id ? ' armed' : ''}`}
+                aria-pressed={armedTemplate === t.id}
                 draggable
                 tabIndex={0}
                 onDragStart={(e) => startDrag(e, { kind: 'template', templateId: t.id, heightU: t.heightU, fullDepth: t.fullDepth })}
                 onDragEnd={endDrag}
-                onDoubleClick={() => quickAdd(t)}
+                onClick={() => arm(armedTemplate === t.id ? null : { kind: 'place', templateId: t.id })}
+                onDoubleClick={() => {
+                  arm(null);
+                  quickAdd(t);
+                }}
                 onKeyDown={(e) => e.key === 'Enter' && quickAdd(t)}
                 title="Drag into a rack"
               >
@@ -79,13 +86,21 @@ export function Library() {
                 </div>
                 {t.custom ? (
                   <div className="template-actions">
-                    <button className="icon-btn" title="Edit" onClick={() => setEditing(t)}>
+                    <button
+                      className="icon-btn"
+                      title="Edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditing(t);
+                      }}
+                    >
                       ✎
                     </button>
                     <button
                       className="icon-btn"
                       title="Delete"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         if (confirm(`Delete device type "${t.name}"? Devices already placed are kept.`)) removeTemplate(t.id);
                       }}
                     >

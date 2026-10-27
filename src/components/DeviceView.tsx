@@ -24,6 +24,8 @@ interface Props {
 export const DeviceView = memo(function DeviceView({ device, face, box, cables, peers, selected, selectedCableId }: Props) {
   const select = useStore((s) => s.select);
   const startRename = useStore((s) => s.startRename);
+  // The port picked as the start of a tap-to-patch.
+  const armedPort = useStore((s) => (s.armed?.kind === 'patch' || s.armed?.kind === 'repatch') && s.armed.from.deviceId === device.id ? s.armed.from.portId : null);
   const updateDevice = useStore((s) => s.updateDevice);
   // In Both view a full-depth device is drawn twice; edit its name only on the side it faces.
   const renaming = useStore((s) => s.renamingId === device.id && (s.view !== 'both' || device.facing === face));
@@ -48,7 +50,13 @@ export const DeviceView = memo(function DeviceView({ device, face, box, cables, 
       data-face={face}
       onClick={(e) => {
         e.stopPropagation();
-        if (!clickSuppressed()) select({ kind: 'device', id: device.id });
+        if (clickSuppressed()) return;
+        const armed = useStore.getState().armed;
+        if (armed?.kind === 'place' || (armed?.kind === 'move' && armed.deviceId !== device.id)) {
+          useStore.getState().flash('That space is taken — tap an empty spot in the rack.');
+          return;
+        }
+        select({ kind: 'device', id: device.id });
       }}
     >
       <div
@@ -116,7 +124,7 @@ export const DeviceView = memo(function DeviceView({ device, face, box, cables, 
                     key={port.id}
                     data-port-id={port.id}
                     data-device-id={device.id}
-                    className={`port pt-${group.type.replace('+', 'p')}${cable ? ' connected' : ''}${cable && cable.id === selectedCableId ? ' active' : ''}`}
+                    className={`port pt-${group.type.replace('+', 'p')}${cable ? ' connected' : ''}${cable && cable.id === selectedCableId ? ' active' : ''}${port.id === armedPort ? ' armed' : ''}`}
                     style={{
                       gridRow: row + 1,
                       gridColumn: col + 1,

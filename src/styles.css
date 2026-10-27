@@ -488,6 +488,8 @@ textarea:focus {
   position: relative;
   overflow: auto;
   min-width: 0;
+  /* One finger scrolls; pinching is handled by the app so it zooms the racks, not the page. */
+  touch-action: pan-x pan-y;
   background:
     radial-gradient(circle, #d5dbe4 1px, transparent 1px) 0 0 / 20px 20px,
     var(--bg);
@@ -1168,11 +1170,82 @@ textarea:focus {
   margin-top: 16px;
 }
 
-.view-controls {
+.armed-banner {
   position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100% - 32px);
+  padding: 8px 8px 8px 16px;
+  background: #1e3a8a;
+  color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.3);
+  font-size: 14px;
+}
+
+.armed-banner .btn {
+  flex: none;
+}
+
+/*
+ * While placing or moving a device by tapping, devices don't take taps: touch screens snap a tap
+ * to the nearest tappable thing, which near a small empty U would be the device next to it.
+ */
+.rack.placing .device {
+  pointer-events: none;
+}
+
+.rack.placing .rack-slots {
+  cursor: copy;
+}
+
+.template.armed {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.port.armed {
+  box-shadow: 0 0 0 3px #60a5fa;
+  border-color: #fff;
+  z-index: 2;
+  animation: armed-blink 1s ease-in-out infinite alternate;
+}
+
+@keyframes armed-blink {
+  to {
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.3);
+  }
+}
+
+.endpoint-move {
+  align-self: flex-start;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+/* The two floating bars sit along the bottom of the canvas and wrap onto two lines when narrow. */
+.view-bars {
+  position: absolute;
+  left: 16px;
   right: 16px;
   bottom: 16px;
   z-index: 20;
+  display: flex;
+  flex-wrap: wrap-reverse;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.view-controls {
+  pointer-events: auto;
   display: flex;
   align-items: center;
   gap: 2px;
@@ -1183,10 +1256,6 @@ textarea:focus {
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.15);
 }
 
-.view-controls.left {
-  right: auto;
-  left: 16px;
-}
 
 .vc-label {
   font-size: 11px;
@@ -1559,5 +1628,252 @@ textarea:focus {
   :root {
     --library-w: 210px;
     --inspector-w: 280px;
+  }
+}
+
+/* Touch screens: bigger targets for fingers. */
+@media (pointer: coarse) {
+  .btn,
+  .seg button,
+  .view-controls button,
+  .tabs button {
+    min-height: 40px;
+  }
+
+  .template {
+    padding: 10px 8px;
+  }
+
+  .icon-btn,
+  .collapse-btn {
+    min-width: 36px;
+    min-height: 36px;
+  }
+}
+
+/* ---------- Print / PDF ---------- */
+
+.print-root {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  background: #6b7280;
+}
+
+.print-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.print-options,
+.print-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.print-opt {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.print-opt label,
+label.print-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.print-pages {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+}
+
+.print-empty {
+  color: #fff;
+  text-align: center;
+}
+
+.print-page {
+  color: #111827;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+.print-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 6mm;
+  border-bottom: 0.4mm solid #111827;
+  padding-bottom: 2mm;
+  margin-bottom: 3mm;
+}
+
+.print-title {
+  font-size: 15pt;
+  font-weight: 700;
+}
+
+.print-meta {
+  font-size: 8.5pt;
+  color: #4b5563;
+}
+
+.print-meta.right {
+  text-align: right;
+  flex: none;
+}
+
+.print-elevation {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+}
+
+.print-legend {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 2mm 6mm;
+  margin-top: 3mm;
+  font-size: 8pt;
+  color: #4b5563;
+}
+
+.lg-port,
+.lg-back {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 1mm;
+}
+
+.lg-port {
+  width: 3mm;
+  height: 2.4mm;
+  border: 0.25mm solid #6b7280;
+  background: #fff;
+}
+
+.lg-port.used {
+  background: #2563eb;
+  border-color: #111827;
+}
+
+.lg-back {
+  width: 5mm;
+  height: 3mm;
+  background: #e5e7eb;
+  border: 0.3mm dashed #374151;
+}
+
+.print-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 8.5pt;
+}
+
+.print-table th,
+.print-table td {
+  text-align: left;
+  vertical-align: top;
+  padding: 1.2mm 1.5mm;
+  border-bottom: 0.2mm solid #d1d5db;
+}
+
+.print-table th {
+  background: #f3f4f6;
+}
+
+.print-table thead {
+  display: table-header-group; /* repeat on every printed page */
+}
+
+.print-table .nowrap {
+  white-space: nowrap;
+}
+
+.swatch-print {
+  display: inline-block;
+  width: 3mm;
+  height: 3mm;
+  border-radius: 50%;
+  margin-right: 1.5mm;
+  vertical-align: -0.4mm;
+  border: 0.2mm solid rgba(0, 0, 0, 0.3);
+}
+
+@media screen {
+  .print-pages > div {
+    zoom: var(--preview-zoom, 1);
+  }
+
+  .print-page {
+    width: 190mm;
+    min-height: 260mm;
+    margin: 0 auto 16px;
+    padding: 8mm;
+    background: #fff;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  }
+}
+
+@media print {
+  @page {
+    size: portrait;
+    margin: 10mm;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  html,
+  body {
+    height: auto;
+    background: #fff;
+  }
+
+  body.print-view-open > #root {
+    display: none;
+  }
+
+  .print-root {
+    position: static;
+    display: block;
+    background: none;
+  }
+
+  .print-toolbar {
+    display: none;
+  }
+
+  .print-pages {
+    padding: 0;
+    overflow: visible;
+  }
+
+  .print-page {
+    break-after: page;
+  }
+
+  .print-pages > div:last-child > .print-page:last-child {
+    break-after: auto;
+  }
+
+  .print-table tr {
+    break-inside: avoid;
   }
 }

@@ -71,6 +71,9 @@ export function MoreScreen() {
         </button>
         <button onClick={() => exportCsvFile('cables')}>Cable schedule (.csv)</button>
         <button onClick={() => exportCsvFile('ports')}>Port map (.csv)</button>
+        <button onClick={() => useStore.getState().showPrint(true)}>
+          Print / PDF<span className="m-muted">Rack drawings and cable schedule for the cabinet door</span>
+        </button>
 
         <h3 className="m-face-label">Edit</h3>
         <button onClick={() => openBulkPatch({})}>

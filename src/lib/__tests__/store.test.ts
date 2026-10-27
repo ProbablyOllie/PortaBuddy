@@ -174,6 +174,13 @@ describe('store', () => {
     expect(library.load(doomed)).toBeNull();
   });
 
+  it('forgets a pending tap-then-tap when switching project', () => {
+    const { sw } = setup();
+    s().arm({ kind: 'move', deviceId: sw.id });
+    s().newProject();
+    expect(s().armed).toBeNull();
+  });
+
   it('duplicates a device with fresh port ids', () => {
     const { sw } = setup();
     s().duplicateDevice(sw.id);

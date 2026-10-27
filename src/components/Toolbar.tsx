@@ -82,6 +82,7 @@ export function Toolbar() {
               <button onClick={exportXlsx}>Excel workbook (.xlsx)</button>
               <button onClick={() => exportCsv('cables')}>Cable schedule (.csv)</button>
               <button onClick={() => exportCsv('ports')}>Port map (.csv)</button>
+              <button onClick={() => useStore.getState().showPrint(true)}>Print / PDF…</button>
             </div>
           ) : null}
         </div>

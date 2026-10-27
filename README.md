@@ -32,6 +32,13 @@ dragging between ports, and export the result as an Excel workbook for your docu
   it back on), and *Compact* draws empty rack units short so a full 42U cabinet stays readable.
 - **Naming** – a newly dropped device asks for its name straight away; double-click a device label
   to rename it later.
+- **Tap instead of drag** – tap a device in the library and then a spot in a rack to place it;
+  tap a free port and then another port to patch them; *Move this end…* on a cable and *Move to…*
+  on a device work the same way. This is how the full layout works on tablets, and it works with a
+  mouse too. Pinch with two fingers to zoom the racks.
+- **Print / PDF** – printable rack elevations (front and/or rear, one page per side, sized for A4
+  and US Letter) with a cable schedule per rack. Choose “Save as PDF” as the printer to get a PDF
+  for the cabinet door or a handover pack.
 - **Cable details** – ID/label (auto-numbered `C001`, `C002`, …), type (Cat5e–Cat8, OM3/OM4/OS2,
   DAC, AOC, power, console), colour, length and notes. Rename individual ports (e.g. `Gi1/0/1`).
 - **Export**
@@ -63,7 +70,7 @@ of the cabinet:
   on another device to patch it — no dragging needed. Bulk patch, position, facing, depth and
   notes are on the same screen.
 - **Cables** – the full cable list with a filter; **More** – projects, backup file, exports,
-  bulk patch and adding racks.
+  print/PDF, bulk patch and adding racks.
 - Search, Undo and Save are always in the top bar, and the phone's Back button/gesture closes
   sheets and screens.
 
@@ -97,7 +104,7 @@ GitHub Pages. To enable it, set **Settings → Pages → Build and deployment �
 | Delete / Backspace | Delete the selected cable, device or rack |
 | Ctrl/⌘ + Z | Undo |
 | Ctrl/⌘ + Shift + Z, Ctrl + Y | Redo |
-| Esc | Cancel a cable drag / clear selection |
+| Esc | Cancel a cable drag or a tap-then-tap action / clear selection |
 | [ / ] | Hide or show the device library / properties panel |
 | / or Ctrl/⌘ + K | Search |
 

@@ -124,6 +124,19 @@ export function firstFreePosition(project: Project, rackId: string, mount: Omit<
   return null;
 }
 
+/** Every position (bottom U, top of rack first) where a device could go. */
+export function freePositions(project: Project, rackId: string, mount: Omit<Mount, 'positionU'>, ignoreDeviceId?: string): number[] {
+  const rack = project.racks.find((r) => r.id === rackId);
+  if (!rack) return [];
+  const out: number[] = [];
+  for (let p = rack.heightU - mount.heightU + 1; p >= 1; p--) {
+    if (canPlace(project, rackId, { ...mount, positionU: p }, ignoreDeviceId)) out.push(p);
+  }
+  return out;
+}
+
+export const uRange = (bottom: number, heightU: number) => (heightU > 1 ? `U${bottom}–${bottom + heightU - 1}` : `U${bottom}`);
+
 export interface PortInfo {
   rack: Rack | undefined;
   device: Device;
