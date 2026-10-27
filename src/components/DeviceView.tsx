@@ -5,7 +5,7 @@ import { groupColumns, groupsOn, portCell } from '../lib/project';
 import { PORT_TYPE_LABELS } from '../lib/templates';
 import type { Cable, Device, Face } from '../lib/types';
 import { useStore } from '../store';
-import { beginWiring, clickSuppressed } from '../wiring';
+import { beginWiring, clickSuppressed, useWiring } from '../wiring';
 
 interface Props {
   device: Device;
@@ -48,6 +48,8 @@ export const DeviceView = memo(function DeviceView({ device, face, box, cables, 
       style={{ top: box.top, height: box.height }}
       data-device-el={device.id}
       data-face={face}
+      onPointerEnter={(e) => e.pointerType === 'mouse' && useWiring.getState().setHoverDevice(device.id)}
+      onPointerLeave={(e) => e.pointerType === 'mouse' && useWiring.getState().setHoverDevice(null)}
       onClick={(e) => {
         e.stopPropagation();
         if (clickSuppressed()) return;

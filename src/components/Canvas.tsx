@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { AUTO_FOCUS_THRESHOLD, MAX_LABELLED, effectiveMode, focusedCables } from '../lib/cableFocus';
 import { cableIndex, describePort } from '../lib/project';
 import type { PortRef } from '../lib/types';
 import { useStore, type CableMode, type ViewMode } from '../store';
 import { beginWiring, clickSuppressed, portUnder, suppressNextClick, useWiring } from '../wiring';
 import { ArmedBanner } from './ArmedBanner';
+import { textOn } from '../lib/templates';
 import { RackView } from './RackView';
 
 type Pt = { x: number; y: number };
@@ -12,6 +14,22 @@ type Pt = { x: number; y: number };
 const FIT_STEP = 0.02;
 
 /** A cable hanging between two ports: sags more the further apart they are. */
+function cableControls(a: Pt, b: Pt): [Pt, Pt] {
+  const dx = b.x - a.x;
+  const dist = Math.hypot(dx, b.y - a.y);
+  const sag = Math.min(140, 18 + dist * 0.22);
+  return [
+    { x: a.x + dx * 0.15, y: a.y + sag },
+    { x: b.x - dx * 0.15, y: b.y + sag },
+  ];
+}
+
+/** Lowest point of the hanging cable (the middle of its curve), where its label goes. */
+export function cableMidpoint(a: Pt, b: Pt): Pt {
+  const [c1, c2] = cableControls(a, b);
+  return { x: (a.x + 3 * c1.x + 3 * c2.x + b.x) / 8, y: (a.y + 3 * c1.y + 3 * c2.y + b.y) / 8 };
+}
+
 export function cablePath(a: Pt, b: Pt): string {
   const dx = b.x - a.x;
   const dist = Math.hypot(dx, b.y - a.y);
@@ -242,6 +260,21 @@ export function Canvas() {
   }, [active]);
 
   const selectedCableId = selection?.kind === 'cable' ? selection.id : null;
+  const hoverDeviceId = useWiring((s) => s.hoverDeviceId);
+  const mode = effectiveMode(cableMode, project.cables.length);
+  const selectedDeviceId = selection?.kind === 'device' ? selection.id : null;
+  const focused = useMemo(
+    () => focusedCables(project.cables, { deviceIds: [selectedDeviceId, hoverDeviceId], cableId: selectedCableId }),
+    [project.cables, selectedDeviceId, hoverDeviceId, selectedCableId],
+  );
+  // Cables shown only because the mouse is over a device must not take the mouse from that device,
+  // or the device would lose its hover, the cables would vanish, and the two would flicker.
+  const pinned = useMemo(
+    () => focusedCables(project.cables, { deviceIds: [selectedDeviceId], cableId: selectedCableId }),
+    [project.cables, selectedDeviceId, selectedCableId],
+  );
+  // Labels only when few enough cables are drawn for them to be readable.
+  const labelled = mode === 'all' ? project.cables.length <= MAX_LABELLED : focused.size <= MAX_LABELLED;
   const ordered = useMemo(
     () => [...project.cables].sort((a, b) => Number(a.id === selectedCableId) - Number(b.id === selectedCableId)),
     [project.cables, selectedCableId],
@@ -287,14 +320,16 @@ export function Canvas() {
             + Add rack
           </button>
         </div>
-        <svg className={`cable-layer mode-${cableMode}${wiring ? ' wiring' : ''}`} width={size.w} height={size.h}>
+        <svg className={`cable-layer mode-${mode}${wiring ? ' wiring' : ''}`} width={size.w} height={size.h}>
           {ordered.map((c) => {
             if (wiring?.moved && wiring.cableId === c.id) return null;
             const pa = positions.get(c.a.portId);
             const pb = positions.get(c.b.portId);
             if (!pa && !pb) return null;
             const sel = c.id === selectedCableId;
-            if (cableMode === 'hide' && !sel) return null;
+            if (mode === 'off' && !sel) return null;
+            if (mode === 'focus' && !focused.has(c.id)) return null;
+            const showLabel = sel || (labelled && (mode === 'all' || focused.has(c.id)));
             // One end is on the side of the rack that isn't shown: draw a short lead disappearing behind.
             const stub = !pa || !pb;
             const a = (pa ?? pb)!;
@@ -303,7 +338,7 @@ export function Canvas() {
             return (
               <g
                 key={c.id}
-                className={`cable${sel ? ' sel' : ''}${stub ? ' stub' : ''}`}
+                className={`cable${sel ? ' sel' : ''}${stub ? ' stub' : ''}${mode === 'focus' && !pinned.has(c.id) ? ' hover-only' : ''}`}
                 onPointerDown={(e) => {
                   // Cable ends sit on top of their ports: pressing there picks up the cable end.
                   const el = e.button === 0 ? portUnder(e.clientX, e.clientY) : null;
@@ -327,6 +362,7 @@ export function Canvas() {
                 ) : (
                   <circle className="cable-end" cx={b.x} cy={b.y} r={3} fill={c.color} />
                 )}
+                {showLabel && !stub ? <CableLabel at={cableMidpoint(a, b)} text={c.label} color={c.color} /> : null}
               </g>
             );
           })}
@@ -339,6 +375,26 @@ export function Canvas() {
         </svg>
       </div>
     </div>
+  );
+}
+
+const CABLE_MODE_HELP: Record<CableMode, string> = {
+  auto: `All cables, or Focus once there are more than ${AUTO_FOCUS_THRESHOLD}`,
+  all: 'Draw every cable',
+  focus: 'Only the cables of the device you select or point at, with their labels',
+  off: 'No cables except the one selected (patched ports still show their colour)',
+};
+
+/** A cable's label on a small chip in its own colour, at the bottom of its curve. */
+function CableLabel({ at, text, color }: { at: Pt; text: string; color: string }) {
+  const w = Math.max(24, text.length * 6.2 + 8);
+  return (
+    <g className="cable-label" transform={`translate(${at.x},${at.y})`}>
+      <rect x={-w / 2} y={-8} width={w} height={16} rx={4} fill={color} />
+      <text textAnchor="middle" dominantBaseline="central" fill={textOn(color)}>
+        {text}
+      </text>
+    </g>
   );
 }
 
@@ -361,8 +417,8 @@ function ViewControls() {
         ))}
         <span className="vc-sep" />
         <span className="vc-label">Cables</span>
-        {(['show', 'dim', 'hide'] as CableMode[]).map((m) => (
-          <button key={m} className={cableMode === m ? 'on' : ''} onClick={() => setCableMode(m)}>
+        {(['auto', 'all', 'focus', 'off'] as CableMode[]).map((m) => (
+          <button key={m} className={cableMode === m ? 'on' : ''} onClick={() => setCableMode(m)} title={CABLE_MODE_HELP[m]}>
             {m[0].toUpperCase() + m.slice(1)}
           </button>
         ))}

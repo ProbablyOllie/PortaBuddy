@@ -1,11 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { migrateCableMode, type CableMode } from './lib/cableFocus';
 import { library, StorageFullError, type ProjectMeta } from './lib/library';
 import { canPlace, createDevice, emptyProject, findPort, nextCableLabel, uid } from './lib/project';
 import { BUILTIN_TEMPLATES, defaultCableFor } from './lib/templates';
 import type { Cable, Device, DeviceTemplate, Face, PortRef, PortType, Project, Rack, Selection } from './lib/types';
 
-export type CableMode = 'show' | 'dim' | 'hide';
+export type { CableMode } from './lib/cableFocus';
 /** Which sides of the racks are drawn. */
 export type ViewMode = Face | 'both';
 /**
@@ -83,7 +84,11 @@ interface State {
   /** Start a new, empty project; the current one stays in the library. */
   newProject: () => void;
   /** Add a project read from a file to the library and open it. */
-  importProject: (p: Project) => void;
+  importProject: (p: Project, opts?: { backedUp?: boolean }) => void;
+  /** Replace the open project with an imported version of it, as one undo step. */
+  applyImport: (p: Project) => void;
+  importOpen: boolean;
+  showImport: (open: boolean) => void;
   openProject: (id: string) => void;
   duplicateProject: (id: string) => void;
   deleteProject: (id: string) => void;
@@ -204,7 +209,7 @@ export const useStore = create<State>()(
         future: [],
         selection: null,
         zoom: 1,
-        cableMode: 'show',
+        cableMode: 'auto',
         view: 'front',
         compact: true,
         autoFit: true,
@@ -250,14 +255,17 @@ export const useStore = create<State>()(
           flushSave();
           switchTo(library.create(emptyProject()));
         },
-        importProject: (project) => {
+        importProject: (project, opts = {}) => {
           flushSave();
-          // Opening a file never overwrites anything: it becomes a project of its own,
-          // already backed up (the file it came from).
+          // Opening a file never overwrites anything: it becomes a project of its own. A
+          // PortaBuddy file counts as a backup of it; a spreadsheet it was built from doesn't.
           const id = library.create(project);
-          library.markFileSaved(id);
+          if (opts.backedUp ?? true) library.markFileSaved(id);
           switchTo(id);
         },
+        applyImport: (project) => commit(() => project),
+        importOpen: false,
+        showImport: (importOpen) => set({ importOpen }),
         openProject: (id) => {
           if (id === get().projectId) return;
           flushSave();
@@ -524,7 +532,12 @@ export const useStore = create<State>()(
     {
       // Projects live in the library (lib/library.ts); this key only holds view preferences.
       name: 'portabuddy-ui',
-      version: 1,
+      version: 2,
+      // v1 had Show / Dim / Hide for cables.
+      migrate: (persisted) => {
+        const state = (persisted ?? {}) as Record<string, unknown>;
+        return { ...state, cableMode: migrateCableMode(state.cableMode) } as never;
+      },
       partialize: (s) => ({
         zoom: s.zoom,
         cableMode: s.cableMode,

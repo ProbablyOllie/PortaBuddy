@@ -100,6 +100,16 @@ export function colorName(hex: string): string {
   return CABLE_COLORS.find((c) => c.hex.toLowerCase() === hex.toLowerCase())?.name ?? hex;
 }
 
+/** Black or white, whichever reads better on a cable colour. */
+export function textOn(hex: string): string {
+  const n = parseInt(hex.replace('#', ''), 16);
+  if (Number.isNaN(n)) return '#111827';
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return r * 0.299 + g * 0.587 + b * 0.114 > 150 ? '#111827' : '#ffffff';
+}
+
 /** Sensible default cable type/colour for a port type when a cable is first drawn. */
 export function defaultCableFor(type: PortType): { type: CableType; color: string } {
   switch (type) {

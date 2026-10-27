@@ -799,12 +799,23 @@ textarea:focus {
 }
 
 .cable-layer.wiring .cable,
-.cable-layer.mode-dim .cable {
+.cable-layer .cable.hover-only {
   pointer-events: none;
 }
 
-.cable-layer.mode-dim .cable:not(.sel) {
-  opacity: 0.18;
+.cable-label {
+  pointer-events: none;
+}
+
+.cable-label rect {
+  stroke: rgba(0, 0, 0, 0.45);
+  stroke-width: 1;
+}
+
+.cable-label text {
+  font-size: 10.5px;
+  font-weight: 700;
+  font-family: system-ui, sans-serif;
 }
 
 .cable-hit {
@@ -1649,6 +1660,137 @@ textarea:focus {
     min-width: 36px;
     min-height: 36px;
   }
+}
+
+/* ---------- Spreadsheet import ---------- */
+
+.modal.import {
+  width: min(900px, calc(100vw - 32px));
+}
+
+.import-start p {
+  line-height: 1.5;
+}
+
+.import-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+
+.import-file label,
+.import-mapping label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.import-file select {
+  max-width: 280px;
+}
+
+.import-mapping {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.import-mapping fieldset {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px 10px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.import-mapping legend {
+  font-weight: 700;
+  font-size: 13px;
+  padding: 0 4px;
+}
+
+.import-mapping select {
+  color: var(--text);
+}
+
+.import-warn {
+  color: #b45309;
+}
+
+.import-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 14px 0 4px;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.import-summary .warn {
+  color: #b45309;
+}
+
+.import-section h4 {
+  margin: 14px 0 6px;
+  font-size: 13px;
+}
+
+.import-table-wrap {
+  max-height: 240px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.import-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.import-table th {
+  position: sticky;
+  top: 0;
+  background: #f9fafb;
+  text-align: left;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 5px 8px;
+}
+
+.import-table td {
+  padding: 4px 8px;
+  border-top: 1px solid #f1f3f6;
+}
+
+.import-problems {
+  margin: 0;
+  padding-left: 18px;
+  max-height: 160px;
+  overflow: auto;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.import-target {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.import-target label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* ---------- Print / PDF ---------- */

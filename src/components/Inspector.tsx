@@ -64,6 +64,13 @@ function Overview() {
         </li>
         <li>Click a cable, device or rack header to edit its details here.</li>
         <li>
+          Busy rack? <b>Cables: Focus</b> (below the racks) shows only the cables of the device you select or point at. Auto switches to
+          it once there are more than 30 cables.
+        </li>
+        <li>
+          Already have a spreadsheet? <b>Projects → Import spreadsheet…</b> builds the racks, devices and cables from it.
+        </li>
+        <li>
           Use <b>Export</b> to download an Excel workbook with the cable schedule, port map, device list and rack elevations.
         </li>
       </ol>

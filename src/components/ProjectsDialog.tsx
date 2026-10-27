@@ -57,6 +57,16 @@ export function ProjectsDialog() {
             <button className="btn" onClick={() => fileRef.current?.click()}>
               Open file…
             </button>
+            <button
+              className="btn"
+              title="Build a project from a cable schedule or device list in Excel or CSV"
+              onClick={() => {
+                close();
+                useStore.getState().showImport(true);
+              }}
+            >
+              Import spreadsheet…
+            </button>
             <input
               ref={fileRef}
               type="file"

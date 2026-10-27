@@ -39,6 +39,15 @@ dragging between ports, and export the result as an Excel workbook for your docu
 - **Print / PDF** – printable rack elevations (front and/or rear, one page per side, sized for A4
   and US Letter) with a cable schedule per rack. Choose “Save as PDF” as the printer to get a PDF
   for the cabinet door or a handover pack.
+- **Busy racks** – cables can be shown *All*, *Focus* (only the cables of the device you select or
+  point at, labelled with their cable IDs), or *Off*; *Auto* switches to Focus above 30 cables.
+- **Import from a spreadsheet** – *Projects → Import spreadsheet…* reads a cable schedule or
+  device list from Excel (.xlsx) or CSV. Columns such as *From device / From port / To device /
+  To port / Cable ID / Colour / Type / Length / Rack / U* are recognised automatically and can be
+  adjusted; devices that don't exist yet are created with a guessed device type you can change;
+  rows that can't be imported are listed with the reason. Import as a new project, or into the
+  open one (one undo step — cables already there are skipped, so an updated sheet can be
+  re-imported). PortaBuddy's own Excel export imports straight back in.
 - **Cable details** – ID/label (auto-numbered `C001`, `C002`, …), type (Cat5e–Cat8, OM3/OM4/OS2,
   DAC, AOC, power, console), colour, length and notes. Rename individual ports (e.g. `Gi1/0/1`).
 - **Export**

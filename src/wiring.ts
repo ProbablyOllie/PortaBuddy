@@ -16,16 +16,17 @@ export interface Wiring {
 
 interface WiringState {
   wiring: Wiring | null;
-  hoverPortId: string | null;
+  /** Device under the mouse, whose cables Focus mode shows. */
+  hoverDeviceId: string | null;
   setWiring: (w: Wiring | null) => void;
-  setHoverPort: (id: string | null) => void;
+  setHoverDevice: (id: string | null) => void;
 }
 
 export const useWiring = create<WiringState>()((set) => ({
   wiring: null,
-  hoverPortId: null,
+  hoverDeviceId: null,
   setWiring: (wiring) => set({ wiring }),
-  setHoverPort: (hoverPortId) => set({ hoverPortId }),
+  setHoverDevice: (hoverDeviceId) => set({ hoverDeviceId }),
 }));
 
 let suppressUntil = 0;
