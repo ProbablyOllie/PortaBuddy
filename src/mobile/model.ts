@@ -33,15 +33,7 @@ export function rackRows(project: Project, rackId: string, face: Face): RackRow[
 
 export { freePositions, uRange } from '../lib/project';
 
-/** Black or white, whichever reads better on a cable colour. */
-export function textOn(hex: string): string {
-  const n = parseInt(hex.replace('#', ''), 16);
-  if (Number.isNaN(n)) return '#111827';
-  const r = (n >> 16) & 255;
-  const g = (n >> 8) & 255;
-  const b = n & 255;
-  return r * 0.299 + g * 0.587 + b * 0.114 > 150 ? '#111827' : '#ffffff';
-}
+export { textOn } from '../lib/templates';
 
 /** Short label for a port tile: its trailing number, or the start of its name. */
 export function portTileLabel(name: string, fallback: string): string {

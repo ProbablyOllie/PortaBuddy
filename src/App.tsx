@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { BulkPatch } from './components/BulkPatch';
 import { Canvas } from './components/Canvas';
+import { ImportDialog } from './components/ImportDialog';
 import { Inspector } from './components/Inspector';
 import { Library } from './components/Library';
 import { PrintView } from './components/PrintView';
@@ -35,6 +36,7 @@ export function App() {
   const openBulkPatch = useStore((s) => s.openBulkPatch);
   const projectsOpen = useStore((s) => s.projectsOpen);
   const printOpen = useStore((s) => s.printOpen);
+  const importOpen = useStore((s) => s.importOpen);
   const mobile = useMobileLayout();
 
   useEffect(() => {
@@ -93,6 +95,7 @@ export function App() {
       </div>
       {projectsOpen ? <ProjectsDialog /> : null}
       {printOpen ? <PrintView /> : null}
+      {importOpen ? <ImportDialog /> : null}
       {bulkPatch ? <BulkPatch initialFrom={bulkPatch.from} onClose={() => openBulkPatch(null)} /> : null}
       {message ? (
         <div className="toast" role="status" onClick={() => flash(null)}>

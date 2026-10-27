@@ -56,6 +56,9 @@ export function MoreScreen() {
         <button onClick={saveBackupFile}>
           Save backup file<span className="m-muted">Download a .portabuddy.json copy</span>
         </button>
+        <button onClick={() => useStore.getState().showImport(true)}>
+          Import from a spreadsheet<span className="m-muted">Excel or CSV cable schedule or device list</span>
+        </button>
 
         <h3 className="m-face-label">Export</h3>
         <button
