@@ -212,7 +212,7 @@ export function BulkPatch({ initialFrom, onClose }: Props) {
             disabled={ok === 0}
             onClick={() => {
               const r = connectMany(pairs, { type, color });
-              flash(`Created ${r.created} cable${r.created === 1 ? '' : 's'}${r.skipped ? ` (${r.skipped} skipped)` : ''}. Undo with Ctrl+Z.`);
+              flash(`Created ${r.created} cable${r.created === 1 ? '' : 's'}${r.skipped ? ` (${r.skipped} skipped)` : ''}. Use Undo to remove them.`);
               onClose();
             }}
           >
