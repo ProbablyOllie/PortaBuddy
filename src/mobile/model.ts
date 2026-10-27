@@ -1,4 +1,4 @@
-import { canPlace, spanOf, visibleOn, type Mount } from '../lib/project';
+import { spanOf, visibleOn } from '../lib/project';
 import type { Device, Face, Project } from '../lib/types';
 
 export type RackRow =
@@ -31,18 +31,7 @@ export function rackRows(project: Project, rackId: string, face: Face): RackRow[
   return rows;
 }
 
-/** Every position (bottom U, top of rack first) where a device could go. */
-export function freePositions(project: Project, rackId: string, mount: Omit<Mount, 'positionU'>, ignoreDeviceId?: string): number[] {
-  const rack = project.racks.find((r) => r.id === rackId);
-  if (!rack) return [];
-  const out: number[] = [];
-  for (let p = rack.heightU - mount.heightU + 1; p >= 1; p--) {
-    if (canPlace(project, rackId, { ...mount, positionU: p }, ignoreDeviceId)) out.push(p);
-  }
-  return out;
-}
-
-export const uRange = (bottom: number, heightU: number) => (heightU > 1 ? `U${bottom}–${bottom + heightU - 1}` : `U${bottom}`);
+export { freePositions, uRange } from '../lib/project';
 
 /** Black or white, whichever reads better on a cable colour. */
 export function textOn(hex: string): string {

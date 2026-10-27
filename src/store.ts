@@ -8,6 +8,17 @@ import type { Cable, Device, DeviceTemplate, Face, PortRef, PortType, Project, R
 export type CableMode = 'show' | 'dim' | 'hide';
 /** Which sides of the racks are drawn. */
 export type ViewMode = Face | 'both';
+/**
+ * Tap-then-tap mode: something was picked and the next tap says where it goes. This is how the
+ * desktop layout works on touch screens, where drag and drop isn't available (it works with a
+ * mouse too).
+ */
+export type Armed =
+  | { kind: 'place'; templateId: string }
+  | { kind: 'move'; deviceId: string }
+  | { kind: 'patch'; from: PortRef }
+  | { kind: 'repatch'; cableId: string; from: PortRef };
+
 /** Which layout to use: automatic picks the mobile one on narrow screens. */
 export type LayoutPref = 'auto' | 'mobile' | 'desktop';
 
@@ -38,6 +49,8 @@ interface State {
   autoFit: boolean;
   /** Device whose name is being edited in place on the rack. */
   renamingId: string | null;
+  armed: Armed | null;
+  printOpen: boolean;
   /** Bulk patch dialog, optionally starting from a device. */
   bulkPatch: { from?: string } | null;
   libraryOpen: boolean;
@@ -56,6 +69,8 @@ interface State {
   setCompact: (on: boolean) => void;
   startRename: (deviceId: string | null) => void;
   openBulkPatch: (opts: { from?: string } | null) => void;
+  arm: (a: Armed | null) => void;
+  showPrint: (open: boolean) => void;
   setCableMode: (m: CableMode) => void;
   setView: (v: ViewMode) => void;
   togglePanel: (panel: 'library' | 'inspector') => void;
@@ -173,6 +188,7 @@ export const useStore = create<State>()(
           future: [],
           selection: null,
           renamingId: null,
+          armed: null,
         });
       };
 
@@ -194,6 +210,8 @@ export const useStore = create<State>()(
         autoFit: true,
         renamingId: null,
         bulkPatch: null,
+        armed: null,
+        printOpen: false,
         libraryOpen: true,
         inspectorOpen: true,
         layoutPref: 'auto',
@@ -207,6 +225,8 @@ export const useStore = create<State>()(
         setCompact: (compact) => set({ compact }),
         startRename: (renamingId) => set({ renamingId }),
         openBulkPatch: (bulkPatch) => set({ bulkPatch }),
+        arm: (armed) => set({ armed }),
+        showPrint: (printOpen) => set({ printOpen }),
         setCableMode: (cableMode) => set({ cableMode }),
         setView: (view) => set({ view }),
         setLayoutPref: (layoutPref) => set({ layoutPref }),

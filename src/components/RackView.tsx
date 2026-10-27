@@ -3,7 +3,7 @@ import { MIME, currentDrag, endDrag, type DragPayload } from '../lib/dnd';
 import { FACE_W, rackLayout, spanBox, uAtY, type RackLayout } from '../lib/layout';
 import { canPlace, otherFace, visibleOn } from '../lib/project';
 import type { Cable, Face, Rack } from '../lib/types';
-import { useStore } from '../store';
+import { allTemplates, useStore } from '../store';
 import { clickSuppressed } from '../wiring';
 import { DeviceView } from './DeviceView';
 
@@ -16,6 +16,7 @@ interface Props {
 export function RackView({ rack, cables, peers }: Props) {
   const view = useStore((s) => s.view);
   const compact = useStore((s) => s.compact);
+  const placing = useStore((s) => s.armed?.kind === 'place' || s.armed?.kind === 'move');
   const devices = useStore((s) => s.project.devices);
   const selection = useStore((s) => s.selection);
   const select = useStore((s) => s.select);
@@ -28,7 +29,7 @@ export function RackView({ rack, cables, peers }: Props) {
   const rackSelected = selection?.kind === 'rack' && selection.id === rack.id;
 
   return (
-    <div className={`rack${rackSelected ? ' selected' : ''}`} data-rack-id={rack.id}>
+    <div className={`rack${rackSelected ? ' selected' : ''}${placing ? ' placing' : ''}`} data-rack-id={rack.id}>
       <button className="rack-header" onClick={() => select({ kind: 'rack', id: rack.id })} title="Rack properties">
         <span className="rack-name">{rack.name}</span>
         <span className="rack-meta">
@@ -77,8 +78,25 @@ function RackFace({ rack, face, layout, cables, peers }: FaceProps) {
   const facingFor = (payload: DragPayload): Face =>
     payload.kind === 'template' ? face : payload.fromFace === face ? payload.facing : otherFace(payload.facing);
 
+  /** What a tap on the rack would place or move, when something was picked first (tap-then-tap). */
+  const armedPayload = (): DragPayload | null => {
+    const armed = useStore.getState().armed;
+    if (armed?.kind === 'place') {
+      const t = allTemplates(project).find((x) => x.id === armed.templateId);
+      return t ? { kind: 'template', templateId: t.id, heightU: t.heightU, fullDepth: t.fullDepth } : null;
+    }
+    if (armed?.kind === 'move') {
+      const d = project.devices.find((x) => x.id === armed.deviceId);
+      if (!d) return null;
+      // Seen from this side it keeps its facing; a half-depth device tapped onto the other side turns round.
+      const fromFace = visibleOn(d, face) ? face : otherFace(face);
+      return { kind: 'device', deviceId: d.id, heightU: d.heightU, fullDepth: d.fullDepth, grabOffsetU: 0, facing: d.facing, fromFace };
+    }
+    return null;
+  };
+
   /** Rack position (bottom U) the dragged item would occupy for the pointer's current height. */
-  const targetFor = (e: DragEvent, payload: DragPayload) => {
+  const targetFor = (e: { clientY: number; currentTarget: Element }, payload: DragPayload) => {
     const rect = e.currentTarget.getBoundingClientRect();
     // Ratio-based so it stays correct at any zoom level.
     const pointerU = uAtY(layout, ((e.clientY - rect.top) / rect.height) * layout.total);
@@ -99,6 +117,16 @@ function RackFace({ rack, face, layout, cables, peers }: FaceProps) {
     if (!ghost || ghost.positionU !== t.positionU || ghost.ok !== t.ok || ghost.heightU !== t.heightU) setGhost(t);
   };
 
+  const place = (payload: DragPayload, t: ReturnType<typeof targetFor>) => {
+    const facing = facingFor(payload);
+    return (
+      t.ok &&
+      (payload.kind === 'template'
+        ? placeDevice(payload.templateId, rack.id, t.positionU, facing)
+        : moveDevice(payload.deviceId, rack.id, t.positionU, facing))
+    );
+  };
+
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
     setGhost(null);
@@ -111,14 +139,7 @@ function RackFace({ rack, face, layout, cables, peers }: FaceProps) {
       }
     }
     endDrag();
-    const t = targetFor(e, payload);
-    const facing = facingFor(payload);
-    const ok =
-      t.ok &&
-      (payload.kind === 'template'
-        ? placeDevice(payload.templateId, rack.id, t.positionU, facing)
-        : moveDevice(payload.deviceId, rack.id, t.positionU, facing));
-    if (!ok) flash('Not enough free space there.');
+    if (!place(payload, targetFor(e, payload))) flash('Not enough free space there.');
   };
 
   const units = Array.from({ length: rack.heightU }, (_, i) => rack.heightU - i);
@@ -148,7 +169,28 @@ function RackFace({ rack, face, layout, cables, peers }: FaceProps) {
           onDrop={onDrop}
           onClick={(e) => {
             e.stopPropagation();
-            if (!clickSuppressed()) select(null);
+            if (clickSuppressed()) return;
+            const payload = armedPayload();
+            if (!payload) {
+              select(null);
+              const armed = useStore.getState().armed;
+              if (armed?.kind === 'patch' || armed?.kind === 'repatch') useStore.getState().arm(null);
+              return;
+            }
+            setGhost(null);
+            if (place(payload, targetFor(e, payload))) useStore.getState().arm(null);
+            else flash('That space is taken — tap an empty spot in the rack.');
+          }}
+          onPointerMove={(e) => {
+            // Preview where a picked device would go (mouse only; touch has no hover).
+            if (e.pointerType !== 'mouse') return;
+            const payload = armedPayload();
+            if (!payload) return;
+            const t = targetFor(e, payload);
+            if (!ghost || ghost.positionU !== t.positionU || ghost.ok !== t.ok) setGhost(t);
+          }}
+          onPointerLeave={() => {
+            if (!currentDrag()) setGhost(null);
           }}
         >
           {units.map((u) => (

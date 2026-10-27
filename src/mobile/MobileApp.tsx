@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { BulkPatch } from '../components/BulkPatch';
+import { PrintView } from '../components/PrintView';
 import { ProjectsDialog } from '../components/ProjectsDialog';
 import { backupStatus, saveBackupFile } from '../lib/fileActions';
 import { hasUnbackedChanges, useStore } from '../store';
@@ -42,6 +43,7 @@ export function MobileApp() {
   const message = useStore((s) => s.message);
   const projectsOpen = useStore((s) => s.projectsOpen);
   const bulkPatch = useStore((s) => s.bulkPatch);
+  const printOpen = useStore((s) => s.printOpen);
   const canUndo = useStore((s) => s.past.length > 0);
   const status = backupStatus({
     storageError: useStore((s) => s.storageError),
@@ -118,6 +120,7 @@ export function MobileApp() {
 
       {sheet ? renderSheet(sheet) : null}
       {projectsOpen ? <ProjectsDialog /> : null}
+      {printOpen ? <PrintView /> : null}
       {bulkPatch ? <BulkPatch initialFrom={bulkPatch.from} onClose={() => openBulkPatch(null)} /> : null}
       {message ? (
         <div className="m-toast" role="status" onClick={() => flash(null)}>

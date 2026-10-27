@@ -3,6 +3,7 @@ import { BulkPatch } from './components/BulkPatch';
 import { Canvas } from './components/Canvas';
 import { Inspector } from './components/Inspector';
 import { Library } from './components/Library';
+import { PrintView } from './components/PrintView';
 import { ProjectsDialog } from './components/ProjectsDialog';
 import { Toolbar } from './components/Toolbar';
 import { useMobileLayout } from './lib/useLayout';
@@ -33,6 +34,7 @@ export function App() {
   const bulkPatch = useStore((s) => s.bulkPatch);
   const openBulkPatch = useStore((s) => s.openBulkPatch);
   const projectsOpen = useStore((s) => s.projectsOpen);
+  const printOpen = useStore((s) => s.printOpen);
   const mobile = useMobileLayout();
 
   useEffect(() => {
@@ -58,7 +60,8 @@ export function App() {
       } else if (!mod && e.key === ']') {
         s.togglePanel('inspector');
       } else if (e.key === 'Escape') {
-        s.select(null);
+        if (s.armed) s.arm(null);
+        else s.select(null);
       } else if ((e.key === 'Delete' || e.key === 'Backspace') && s.selection) {
         e.preventDefault();
         const sel = s.selection;
@@ -89,6 +92,7 @@ export function App() {
         {inspectorOpen ? <Inspector /> : <PanelStrip side="right" label="Properties / Cables" onOpen={() => togglePanel('inspector')} />}
       </div>
       {projectsOpen ? <ProjectsDialog /> : null}
+      {printOpen ? <PrintView /> : null}
       {bulkPatch ? <BulkPatch initialFrom={bulkPatch.from} onClose={() => openBulkPatch(null)} /> : null}
       {message ? (
         <div className="toast" role="status" onClick={() => flash(null)}>

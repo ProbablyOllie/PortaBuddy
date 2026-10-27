@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { cableIndex, describePort, findPort, groupRackFace, spanOf } from '../lib/project';
+import { cableIndex, describePort, findPort, freePositions, groupRackFace, spanOf, uRange } from '../lib/project';
 import { CABLE_COLORS, CABLE_TYPES, PORT_TYPE_LABELS } from '../lib/templates';
 import type { CableType, Face, PortRef } from '../lib/types';
 import { useStore } from '../store';
@@ -53,7 +53,7 @@ function Overview() {
       <h4>How to use</h4>
       <ol className="help">
         <li>Drag devices from the library on the left into a rack. Drag a device by its label to move it.</li>
-        <li>Press on a port and drag to another port to run a cable between them — across racks too.</li>
+        <li>Press on a port and drag to another port to run a cable between them — across racks too. Or tap a free port, then tap the other port.</li>
         <li>
           Patching a whole panel? Use <b>Bulk patch</b> to connect a run of ports (e.g. 1–24 to Gi1–24) in one go.
         </li>
@@ -156,6 +156,9 @@ function DeviceProps({ id }: { id: string }) {
   const removeDevice = useStore((s) => s.removeDevice);
   const setDeviceMount = useStore((s) => s.setDeviceMount);
   const openBulkPatch = useStore((s) => s.openBulkPatch);
+  const moveDevice = useStore((s) => s.moveDevice);
+  const arm = useStore((s) => s.arm);
+  const flash = useStore((s) => s.flash);
   const duplicateDevice = useStore((s) => s.duplicateDevice);
   const select = useStore((s) => s.select);
   const index = useMemo(() => cableIndex(project.cables), [project.cables]);
@@ -176,6 +179,29 @@ function DeviceProps({ id }: { id: string }) {
       <p className="hint">
         {device.model} · {rack?.name} · U{b === t ? b : `${b}–${t}`} · {used}/{allPorts.length} ports used
       </p>
+      <div className="form-row">
+        <label>
+          Position
+          <select
+            value={device.positionU}
+            onChange={(e) => {
+              if (!moveDevice(id, device.rackId, Number(e.target.value))) flash('Not enough free space there.');
+            }}
+          >
+            {freePositions(project, device.rackId, device, device.id).map((p) => (
+              <option key={p} value={p}>
+                {uRange(p, device.heightU)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="field">
+          Or pick a spot
+          <button className="btn" onClick={() => arm({ kind: 'move', deviceId: id })} title="Then tap where it should go, in any rack">
+            Move to…
+          </button>
+        </div>
+      </div>
       <div className="form-row">
         <label>
           Mounted facing
@@ -255,9 +281,10 @@ function DeviceProps({ id }: { id: string }) {
   );
 }
 
-function Endpoint({ label, refr }: { label: string; refr: PortRef }) {
+function Endpoint({ label, refr, cableId }: { label: string; refr: PortRef; cableId: string }) {
   const project = useStore((s) => s.project);
   const select = useStore((s) => s.select);
+  const arm = useStore((s) => s.arm);
   const info = findPort(project, refr);
   if (!info) return <p className="muted">{label}: (missing)</p>;
   return (
@@ -267,6 +294,9 @@ function Endpoint({ label, refr }: { label: string; refr: PortRef }) {
         {info.rack?.name} · U{info.device.positionU} · {info.device.name}
       </button>
       <div className="muted">{info.face === 'front' ? 'Front' : 'Rear'} of rack</div>
+      <button className="link endpoint-move" onClick={() => arm({ kind: 'repatch', cableId, from: refr })}>
+        Move this end…
+      </button>
       <div>
         Port <b>{info.port.name || info.group.label}</b> <span className="muted">({PORT_TYPE_LABELS[info.type]})</span>
       </div>
@@ -286,8 +316,8 @@ function CableProps({ id }: { id: string }) {
         Cable ID / label
         <input value={cable.label} onChange={(e) => updateCable(id, { label: e.target.value })} />
       </label>
-      <Endpoint label="End A" refr={cable.a} />
-      <Endpoint label="End B" refr={cable.b} />
+      <Endpoint label="End A" refr={cable.a} cableId={id} />
+      <Endpoint label="End B" refr={cable.b} cableId={id} />
       <label>
         Type
         <select value={cable.type} onChange={(e) => updateCable(id, { type: e.target.value as CableType })}>
@@ -319,7 +349,7 @@ function CableProps({ id }: { id: string }) {
         Notes
         <textarea rows={2} value={cable.notes} placeholder="VLAN, purpose…" onChange={(e) => updateCable(id, { notes: e.target.value })} />
       </label>
-      <p className="hint">Tip: drag either end of the cable in the rack to move it to another port.</p>
+      <p className="hint">Tip: drag either end of the cable in the rack to another port, or use “Move this end…” and tap the new port.</p>
       <button className="btn danger" onClick={() => removeCable(id)}>
         Delete cable
       </button>

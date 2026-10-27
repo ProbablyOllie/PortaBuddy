@@ -1,11 +1,15 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { cableIndex, describePort } from '../lib/project';
 import type { PortRef } from '../lib/types';
 import { useStore, type CableMode, type ViewMode } from '../store';
 import { beginWiring, clickSuppressed, portUnder, suppressNextClick, useWiring } from '../wiring';
+import { ArmedBanner } from './ArmedBanner';
 import { RackView } from './RackView';
 
 type Pt = { x: number; y: number };
+
+/** Auto-fit ignores smaller zoom changes, so rounding can't make it oscillate. */
+const FIT_STEP = 0.02;
 
 /** A cable hanging between two ports: sags more the further apart they are. */
 export function cablePath(a: Pt, b: Pt): string {
@@ -13,6 +17,36 @@ export function cablePath(a: Pt, b: Pt): string {
   const dist = Math.hypot(dx, b.y - a.y);
   const sag = Math.min(140, 18 + dist * 0.22);
   return `M${a.x},${a.y} C${a.x + dx * 0.15},${a.y + sag} ${b.x - dx * 0.15},${b.y + sag} ${b.x},${b.y}`;
+}
+
+/**
+ * A tap (or click without dragging) on a port. With nothing picked: a patched port selects its
+ * cable; a free port is picked as the start of a new cable. With a port picked: the tapped port
+ * completes the patch (or the cable-end move).
+ */
+function tapPort(port: PortRef, cableId: string | null) {
+  const store = useStore.getState();
+  const armed = store.armed;
+  if (armed?.kind === 'patch' || armed?.kind === 'repatch') {
+    if (armed.from.portId === port.portId) {
+      store.arm(null);
+      return;
+    }
+    if (armed.kind === 'patch') {
+      if (store.connect(armed.from, port)) store.arm(null);
+    } else if (store.repatch(armed.cableId, armed.from, port)) {
+      store.arm(null);
+      store.select({ kind: 'cable', id: armed.cableId });
+    }
+    return;
+  }
+  if (cableId) {
+    store.arm(null);
+    store.select({ kind: 'cable', id: cableId });
+  } else {
+    store.select({ kind: 'device', id: port.deviceId });
+    store.arm({ kind: 'patch', from: port });
+  }
 }
 
 export function Canvas() {
@@ -76,14 +110,16 @@ export function Canvas() {
     const top = content.getBoundingClientRect().top;
     const bottom = Math.max(...[...racks].map((r) => r.getBoundingClientRect().bottom));
     const natural = (bottom - top) / zoom + 64; // unzoomed height incl. top padding and room for the floating bars
-    return Math.max(0.4, Math.min(1, Math.floor((scroll.clientHeight / natural) * 100) / 100));
+    // offsetHeight, not clientHeight: a horizontal scrollbar appearing at the new zoom must not
+    // change the answer, or the zoom would flip back and forth between two values forever.
+    return Math.max(0.4, Math.min(1, Math.floor(((scroll.offsetHeight - 16) / natural) * 100) / 100));
   }, [zoom]);
 
   // Keep the cabinet fitted to the window until the user picks a zoom themselves.
   useLayoutEffect(() => {
     if (!autoFit) return;
     const z = fitZoomFor();
-    if (z !== null && Math.abs(z - zoom) >= 0.01) useStore.getState().fitZoom(z);
+    if (z !== null && Math.abs(z - zoom) >= FIT_STEP) useStore.getState().fitZoom(z);
   }, [autoFit, project, view, compact, zoom, fitZoomFor]);
 
   useEffect(() => {
@@ -92,12 +128,46 @@ export function Canvas() {
       const s = useStore.getState();
       if (!s.autoFit) return;
       const z = fitZoomFor();
-      if (z !== null && Math.abs(z - s.zoom) >= 0.01) s.fitZoom(z);
+      if (z !== null && Math.abs(z - s.zoom) >= FIT_STEP) s.fitZoom(z);
     });
     if (contentRef.current) ro.observe(contentRef.current);
     if (scrollRef.current) ro.observe(scrollRef.current);
     return () => ro.disconnect();
   }, [measure, fitZoomFor]);
+
+  // Two-finger pinch zooms the racks (the browser's own page zoom is turned off for the canvas).
+  const touches = useRef(new Map<number, Pt>());
+  const pinch = useRef<{ dist: number; zoom: number } | null>(null);
+  const pinchHandlers = useMemo(() => {
+    const spread = () => {
+      const [a, b] = [...touches.current.values()];
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    };
+    const end = (e: ReactPointerEvent) => {
+      touches.current.delete(e.pointerId);
+      if (touches.current.size < 2) pinch.current = null;
+    };
+    return {
+      onPointerDownCapture: (e: ReactPointerEvent) => {
+        if (e.pointerType !== 'touch') return;
+        touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (touches.current.size === 2) {
+          // A second finger means zoom, not a cable drag started by the first one.
+          useWiring.getState().setWiring(null);
+          pinch.current = { dist: spread(), zoom: useStore.getState().zoom };
+        }
+      },
+      onPointerMoveCapture: (e: ReactPointerEvent) => {
+        if (!touches.current.has(e.pointerId)) return;
+        touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pinch.current && touches.current.size === 2) {
+          useStore.getState().setZoom(pinch.current.zoom * (spread() / pinch.current.dist));
+        }
+      },
+      onPointerUpCapture: end,
+      onPointerCancelCapture: end,
+    };
+  }, []);
 
   // Pointer tracking while a patch lead is being dragged from a port.
   const active = wiring !== null;
@@ -136,11 +206,12 @@ export function Canvas() {
       useWiring.getState().setWiring(null);
       if (!w) return;
       const store = useStore.getState();
-      suppressNextClick();
       if (!w.moved) {
-        store.select(w.cableId ? { kind: 'cable', id: w.cableId } : { kind: 'device', id: w.from.deviceId });
+        // A tap: the port swallows its own click, so the next tap elsewhere must not be ignored.
+        tapPort(w.from, w.cableId);
         return;
       }
+      suppressNextClick();
       const el = portAt(e.clientX, e.clientY);
       if (!el) {
         if (w.cableId) store.flash('Drop the cable end on a free port to re-patch it.');
@@ -190,7 +261,18 @@ export function Canvas() {
   return (
     <div className="canvas-wrap">
       <ViewControls />
-      <div className="canvas" ref={scrollRef} onClick={() => !clickSuppressed() && select(null)}>
+      <ArmedBanner />
+      <div
+      className="canvas"
+      ref={scrollRef}
+      onClick={() => {
+        if (clickSuppressed()) return;
+        select(null);
+        const armed = useStore.getState().armed;
+        if (armed?.kind === 'patch' || armed?.kind === 'repatch') useStore.getState().arm(null);
+      }}
+      {...pinchHandlers}
+    >
         <div className="canvas-content" ref={contentRef} style={{ zoom }}>
           {project.racks.map((rack) => (
             <RackView key={rack.id} rack={rack} cables={cables} peers={peers} />
@@ -269,7 +351,7 @@ function ViewControls() {
   const cableMode = useStore((s) => s.cableMode);
   const { setZoom, setAutoFit, setCompact, setView, setCableMode } = useStore.getState();
   return (
-    <>
+    <div className="view-bars">
       <div className="view-controls left" onClick={(e) => e.stopPropagation()}>
         <span className="vc-label">Side</span>
         {(['front', 'rear', 'both'] as ViewMode[]).map((v) => (
@@ -306,6 +388,6 @@ function ViewControls() {
           Compact
         </button>
       </div>
-    </>
+    </div>
   );
 }
