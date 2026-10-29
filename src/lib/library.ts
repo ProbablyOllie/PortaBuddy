@@ -170,6 +170,11 @@ export class Library {
 
   // ----- projects -----
 
+  /** The project exactly as stored, for rescuing it when it can't be displayed. */
+  raw(id: string): string | null {
+    return this.storage.getItem(projectKey(id));
+  }
+
   load(id: string): Project | null {
     try {
       const raw = this.storage.getItem(projectKey(id));

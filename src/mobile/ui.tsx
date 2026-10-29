@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { groupsOn } from '../lib/project';
+import { cssEscape } from '../lib/validate';
 import { PORT_TYPE_LABELS } from '../lib/templates';
 import type { Cable, Device, Face, Port, PortGroup } from '../lib/types';
 import { portTileLabel, textOn } from './model';
@@ -64,7 +65,7 @@ export function PortGrid({
 }) {
   useEffect(() => {
     if (!highlightId) return;
-    document.querySelector(`[data-m-port="${highlightId}"]`)?.scrollIntoView({ block: 'center' });
+    document.querySelector(`[data-m-port="${cssEscape(highlightId)}"]`)?.scrollIntoView({ block: 'center' });
   }, [highlightId]);
 
   const sections = faces.map((face) => ({ face, groups: groupsOn(device, face).filter((x) => x.group.ports.length) })).filter((s) => s.groups.length);

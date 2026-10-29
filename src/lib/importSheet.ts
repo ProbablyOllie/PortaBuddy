@@ -1,3 +1,4 @@
+import { trailingNumber } from './validate';
 import { canPlace, createDevice, emptyProject, firstFreePosition, nextCableLabel, uid } from './project';
 import { BUILTIN_TEMPLATES, CABLE_COLORS, CABLE_TYPES, defaultCableFor } from './templates';
 import type { Cable, CableType, Device, DeviceTemplate, Port, PortType, Project } from './types';
@@ -89,19 +90,33 @@ export function parseCsv(text: string): Grid {
   return rows.map((r) => r.map((c) => c.trim()));
 }
 
+/**
+ * Limits on what's read from a spreadsheet. Spreadsheets come from anywhere: these keep a huge or
+ * hostile file from exhausting memory or freezing the page. Real cable schedules are far smaller.
+ */
+export const SHEET_LIMITS = { bytes: 25_000_000, rows: 20_000, columns: 200, cellChars: 500 };
+
+/** Trim a grid to the limits above. */
+export function limitGrid(rows: Grid): Grid {
+  return rows.slice(0, SHEET_LIMITS.rows).map((r) => (r ?? []).slice(0, SHEET_LIMITS.columns).map((c) => String(c ?? '').slice(0, SHEET_LIMITS.cellChars)));
+}
+
 export async function readSpreadsheet(file: File): Promise<SheetData[]> {
-  if (/\.(csv|tsv|txt)$/i.test(file.name)) return [{ name: file.name, rows: parseCsv(await file.text()) }];
+  if (file.size > SHEET_LIMITS.bytes) throw new Error(`it is larger than ${SHEET_LIMITS.bytes / 1_000_000} MB`);
+  if (/\.(csv|tsv|txt)$/i.test(file.name)) return [{ name: file.name.slice(0, 100), rows: limitGrid(parseCsv(await file.text())) }];
   const { default: ExcelJS } = await import('exceljs');
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(await file.arrayBuffer());
-  return wb.worksheets.map((ws) => {
+  return wb.worksheets.slice(0, 50).map((ws) => {
     const rows: Grid = [];
+    const cols = Math.min(ws.columnCount, SHEET_LIMITS.columns);
     ws.eachRow({ includeEmpty: true }, (r, n) => {
+      if (n > SHEET_LIMITS.rows) return;
       const cells: string[] = [];
-      for (let c = 1; c <= ws.columnCount; c++) cells.push((r.getCell(c).text ?? '').trim());
+      for (let c = 1; c <= cols; c++) cells.push((r.getCell(c).text ?? '').trim().slice(0, SHEET_LIMITS.cellChars));
       rows[n - 1] = cells;
     });
-    return { name: ws.name, rows: Array.from(rows, (r) => r ?? []) };
+    return { name: ws.name.slice(0, 100), rows: Array.from(rows, (r) => r ?? []) };
   });
 }
 
@@ -298,10 +313,7 @@ export interface Plan {
 
 const cell = (row: string[], col: number | undefined) => (col === undefined ? '' : (row[col] ?? '').trim());
 const key = (name: string) => name.trim().toLowerCase();
-const trailingNumber = (name: string) => {
-  const m = /(\d+)\s*$/.exec(name);
-  return m ? Number(m[1]) : null;
-};
+
 const letters = (name: string) => name.replace(/[^a-z]/gi, '').toLowerCase();
 
 /**

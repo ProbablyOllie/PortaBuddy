@@ -5,6 +5,7 @@ import { groupColumns, groupsOn, portCell } from '../lib/project';
 import { PORT_TYPE_LABELS } from '../lib/templates';
 import type { Cable, Device, Face } from '../lib/types';
 import { useStore } from '../store';
+import { trailingDigits } from '../lib/validate';
 import { beginWiring, clickSuppressed, useWiring } from '../wiring';
 
 interface Props {
@@ -120,7 +121,7 @@ export const DeviceView = memo(function DeviceView({ device, face, box, cables, 
                 const cable = cables.get(port.id);
                 const label = port.name || group.label;
                 const peer = peers.get(port.id);
-                const num = /(\d+)$/.exec(port.name)?.[1];
+                const num = trailingDigits(port.name);
                 return (
                   <div
                     key={port.id}

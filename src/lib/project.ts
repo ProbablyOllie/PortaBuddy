@@ -1,3 +1,4 @@
+import { sanitizeProject, type SanitizeReport } from './validate';
 import type { Cable, Device, DeviceTemplate, Face, Port, PortGroup, PortRef, PortType, Project, Rack } from './types';
 
 let counter = 0;
@@ -197,26 +198,10 @@ export function describePort(project: Project, ref: PortRef): string {
 }
 
 /**
- * Validates and normalises data loaded from a file or storage, upgrading older versions.
- * Version 1 projects had no front/rear: everything stays visible from the front.
- * Throws on malformed input.
+ * Validates and normalises data loaded from a file or storage, upgrading older versions (version 1
+ * had no front/rear: everything stays on the front). Every field is checked and repaired or dropped
+ * — see `sanitizeProject`. Throws only if the data isn't a project at all.
  */
-export function parseProject(data: unknown): Project {
-  const p = data as Partial<Omit<Project, 'version'>> & { version?: number };
-  if (!p || typeof p !== 'object' || !Array.isArray(p.racks) || !Array.isArray(p.devices) || !Array.isArray(p.cables)) {
-    throw new Error('Not a PortaBuddy project file');
-  }
-  return {
-    version: 2,
-    name: typeof p.name === 'string' ? p.name : 'Untitled cabinet',
-    racks: p.racks,
-    devices: p.devices.map((d) => ({
-      ...d,
-      facing: d.facing === 'rear' ? 'rear' : 'front',
-      fullDepth: d.fullDepth ?? true,
-      portGroups: d.portGroups.map((g) => ({ ...g, face: g.face === 'rear' ? 'rear' : 'front' })),
-    })),
-    cables: p.cables,
-    customTemplates: (Array.isArray(p.customTemplates) ? p.customTemplates : []).map((t) => ({ ...t, fullDepth: t.fullDepth ?? true })),
-  };
+export function parseProject(data: unknown, report?: SanitizeReport): Project {
+  return sanitizeProject(data, report);
 }

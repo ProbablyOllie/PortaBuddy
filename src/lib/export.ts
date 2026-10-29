@@ -1,4 +1,5 @@
 import { cableIndex, describePort, findPort, groupRackFace, spanOf, visibleOn } from './project';
+import { safeColor } from './validate';
 import { CATEGORY_LABELS, PORT_TYPE_LABELS, colorName } from './templates';
 import type { Face, PortRef, Project } from './types';
 
@@ -146,8 +147,14 @@ export function elevationGrid(project: Project): { header: string[]; rows: Row[]
   return { header: ['U', ...columns.map(({ rack, face }) => `${rack.name} ${faceLabel(face)}`)], rows, merges };
 }
 
-function csvCell(v: string | number): string {
-  const s = String(v);
+/**
+ * One CSV field. Text starting with = + - @ (or tab / carriage return) would be run as a formula
+ * by Excel and similar apps — a way to plant phishing links or commands in someone's export
+ * (CSV injection). Such text gets a leading apostrophe, which spreadsheets show as plain text.
+ */
+export function csvCell(v: string | number): string {
+  let s = String(v);
+  if (typeof v === 'string' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
@@ -195,9 +202,10 @@ export async function buildWorkbook(project: Project): Promise<Blob> {
     const sorted = [...project.cables].sort((x, y) => x.label.localeCompare(y.label, undefined, { numeric: true }));
     sorted.forEach((c, i) => {
       const cell = cableWs.getCell(i + 2, 3); // Colour column
-      const argb = 'FF' + c.color.replace('#', '').toUpperCase();
+      const color = safeColor(c.color);
+      const argb = 'FF' + color.slice(1).toUpperCase();
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
-      const dark = parseInt(c.color.slice(1, 3), 16) * 0.299 + parseInt(c.color.slice(3, 5), 16) * 0.587 + parseInt(c.color.slice(5, 7), 16) * 0.114 < 140;
+      const dark = parseInt(color.slice(1, 3), 16) * 0.299 + parseInt(color.slice(3, 5), 16) * 0.587 + parseInt(color.slice(5, 7), 16) * 0.114 < 140;
       cell.font = { color: { argb: dark ? 'FFFFFFFF' : 'FF000000' } };
     });
   }
