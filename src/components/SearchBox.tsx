@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { search, type SearchHit } from '../lib/search';
+import { cssEscape } from '../lib/validate';
 import type { Face } from '../lib/types';
 import { useStore } from '../store';
 
@@ -53,19 +54,19 @@ export function SearchBox() {
     if (!s.inspectorOpen) s.togglePanel('inspector');
     if (hit.kind === 'rack') {
       s.select({ kind: 'rack', id: hit.id });
-      reveal(`[data-rack-id="${hit.id}"]`);
+      reveal(`[data-rack-id="${cssEscape(hit.id)}"]`);
     } else if (hit.kind === 'device') {
       showFace(hit.face);
       s.select({ kind: 'device', id: hit.id });
-      reveal(`[data-device-el="${hit.id}"]`);
+      reveal(`[data-device-el="${cssEscape(hit.id)}"]`);
     } else if (hit.kind === 'cable') {
       showFace(hit.face);
       s.select({ kind: 'cable', id: hit.id });
-      reveal(`[data-port-id="${hit.portId}"]`);
+      reveal(`[data-port-id="${cssEscape(hit.portId)}"]`);
     } else {
       showFace(hit.face);
       s.select(hit.cableId ? { kind: 'cable', id: hit.cableId } : { kind: 'device', id: hit.deviceId });
-      reveal(`[data-port-id="${hit.id}"]`);
+      reveal(`[data-port-id="${cssEscape(hit.id)}"]`);
     }
     setOpen(false);
     inputRef.current?.blur();

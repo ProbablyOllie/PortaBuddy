@@ -1,6 +1,9 @@
 import { useRef, useState } from 'react';
 import { library } from '../lib/library';
 import { parseProject } from '../lib/project';
+
+/** Real projects are well under 1 MB; anything this big is a mistake or an attempt to exhaust memory. */
+const MAX_PROJECT_FILE_BYTES = 20_000_000;
 import { timeAgo } from '../lib/time';
 import { flushSave, useStore } from '../store';
 
@@ -29,8 +32,14 @@ export function ProjectsDialog() {
 
   const openFile = async (file: File) => {
     try {
-      importProject(parseProject(JSON.parse(await file.text())));
-      flash(`Opened ${file.name} as a new project.`);
+      if (file.size > MAX_PROJECT_FILE_BYTES) throw new Error(`it is larger than ${MAX_PROJECT_FILE_BYTES / 1_000_000} MB`);
+      const report = { issues: [] as string[] };
+      importProject(parseProject(JSON.parse(await file.text()), report));
+      flash(
+        report.issues.length
+          ? `Opened ${file.name} as a new project. Some of it was invalid and was fixed or left out: ${report.issues.slice(0, 2).join('; ')}${report.issues.length > 2 ? '…' : ''}`
+          : `Opened ${file.name} as a new project.`,
+      );
       close();
     } catch (err) {
       flash(`Could not open ${file.name}: ${(err as Error).message}`);

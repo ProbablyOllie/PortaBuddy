@@ -13,6 +13,7 @@ import {
   type NewDevice,
   type SheetData,
 } from '../lib/importSheet';
+import { sanitizeProject } from '../lib/validate';
 import { allTemplates, useStore } from '../store';
 
 const plural = (n: number, word: string) => (n === 1 ? word : `${word}s`);
@@ -87,8 +88,10 @@ export function ImportDialog() {
 
   const doImport = () => {
     if (!result) return;
-    if (target === 'new') importProject(result.project, { backedUp: false });
-    else applyImport(result.project);
+    // Everything entering a project goes through the same validation as an opened file.
+    const checked = sanitizeProject(result.project);
+    if (target === 'new') importProject(checked, { backedUp: false });
+    else applyImport(checked);
     flash(
       `Imported ${result.cables} cable${result.cables === 1 ? '' : 's'} and ${result.devices} new device${result.devices === 1 ? '' : 's'}${
         result.problems.length ? ` — ${result.problems.length} row${result.problems.length === 1 ? '' : 's'} skipped` : ''

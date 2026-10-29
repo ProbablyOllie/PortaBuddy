@@ -106,6 +106,13 @@ The build is a static site (relative paths), so `dist/` can be hosted anywhere.
 GitHub Pages. To enable it, set **Settings → Pages → Build and deployment → Source** to
 **GitHub Actions**.
 
+## Security and privacy
+
+Everything runs in your browser; projects stay in local storage on your device. Opened project
+files and imported spreadsheets are treated as untrusted and checked before use, and exported
+CSVs are protected against formula injection. See [SECURITY.md](SECURITY.md) for the details and
+known limitations.
+
 ## Keyboard shortcuts
 
 | Key | Action |

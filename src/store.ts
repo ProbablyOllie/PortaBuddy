@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { migrateCableMode, type CableMode } from './lib/cableFocus';
+import { safeColor } from './lib/validate';
 import { library, StorageFullError, type ProjectMeta } from './lib/library';
 import { canPlace, createDevice, emptyProject, findPort, nextCableLabel, uid } from './lib/project';
 import { BUILTIN_TEMPLATES, defaultCableFor } from './lib/templates';
@@ -506,7 +507,9 @@ export const useStore = create<State>()(
           }));
           return true;
         },
-        updateCable: (id, patch) => {
+        updateCable: (id, rawPatch) => {
+          // Colours end up in style and SVG attributes: only #rrggbb is accepted.
+          const patch = rawPatch.color === undefined ? rawPatch : { ...rawPatch, color: safeColor(rawPatch.color) };
           commit(
             (p) => ({ ...p, cables: p.cables.map((c) => (c.id === id ? { ...c, ...patch } : c)) }),
             `cable:${id}:${Object.keys(patch).join()}`,

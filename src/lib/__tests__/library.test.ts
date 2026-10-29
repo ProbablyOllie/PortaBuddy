@@ -88,8 +88,9 @@ describe('Library', () => {
     const before = lib.versions(id).length;
     limit = used() + 50; // nearly full: the next save only fits once old versions are dropped
     t += 1000;
-    lib.save(id, { ...named('big'), customTemplates: [], racks: [{ id: 'r', name: 'R'.repeat(400), location: '', heightU: 42 }] });
-    expect(lib.load(id)!.racks[0].name).toHaveLength(400);
+    const racks = [1, 2, 3].map((i) => ({ id: `r${i}`, name: 'R'.repeat(150), location: '', heightU: 42 }));
+    lib.save(id, { ...named('big'), customTemplates: [], racks });
+    expect(lib.load(id)!.racks.map((r) => r.name.length)).toEqual([150, 150, 150]);
     expect(lib.versions(id).length).toBeLessThan(before);
     limit = 10;
     expect(() => lib.save(id, named('too big'))).toThrow(StorageFullError);

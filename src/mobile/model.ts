@@ -1,4 +1,5 @@
 import { spanOf, visibleOn } from '../lib/project';
+import { trailingDigits } from '../lib/validate';
 import type { Device, Face, Project } from '../lib/types';
 
 export type RackRow =
@@ -37,7 +38,7 @@ export { textOn } from '../lib/templates';
 
 /** Short label for a port tile: its trailing number, or the start of its name. */
 export function portTileLabel(name: string, fallback: string): string {
-  const n = /(\d+)$/.exec(name)?.[1];
+  const n = trailingDigits(name);
   if (n) return n;
   return (name || fallback).slice(0, 4);
 }
