@@ -35,5 +35,6 @@ export default defineConfig({
   base: './',
   plugins: [react(), contentSecurityPolicy()],
   // exceljs is lazy-loaded only when exporting, so its large chunk is expected.
-  build: { chunkSizeWarningLimit: 1000 },
+  // Never inline assets as data: URLs — the Content Security Policy only allows files from this site.
+  build: { chunkSizeWarningLimit: 1000, assetsInlineLimit: 0 },
 });

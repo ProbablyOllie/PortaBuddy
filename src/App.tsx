@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import { BulkPatch } from './components/BulkPatch';
+import { HelpDialog } from './components/HelpDialog';
+import { CollapseLeftIcon, CollapseRightIcon } from './components/icons';
 import { Canvas } from './components/Canvas';
 import { ImportDialog } from './components/ImportDialog';
 import { Inspector } from './components/Inspector';
@@ -20,7 +22,7 @@ function isTyping(e: KeyboardEvent) {
 function PanelStrip({ side, label, onOpen }: { side: 'left' | 'right'; label: string; onOpen: () => void }) {
   return (
     <button className={`panel-strip ${side}`} onClick={onOpen} title={`Show ${label.toLowerCase()} (${side === 'left' ? '[' : ']'})`}>
-      <span className="strip-arrow">{side === 'left' ? '»' : '«'}</span>
+      {side === 'left' ? <CollapseRightIcon /> : <CollapseLeftIcon />}
       <span className="strip-label">{label}</span>
     </button>
   );
@@ -37,6 +39,7 @@ export function App() {
   const projectsOpen = useStore((s) => s.projectsOpen);
   const printOpen = useStore((s) => s.printOpen);
   const importOpen = useStore((s) => s.importOpen);
+  const helpOpen = useStore((s) => s.helpOpen);
   const mobile = useMobileLayout();
 
   useEffect(() => {
@@ -96,6 +99,7 @@ export function App() {
       {projectsOpen ? <ProjectsDialog /> : null}
       {printOpen ? <PrintView /> : null}
       {importOpen ? <ImportDialog /> : null}
+      {helpOpen ? <HelpDialog /> : null}
       {bulkPatch ? <BulkPatch initialFrom={bulkPatch.from} onClose={() => openBulkPatch(null)} /> : null}
       {message ? (
         <div className="toast" role="status" onClick={() => flash(null)}>

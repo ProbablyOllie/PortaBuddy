@@ -2,7 +2,7 @@ import { memo, useEffect, useRef, useState, type PointerEvent } from 'react';
 import { endDrag, startDrag } from '../lib/dnd';
 import { GROUP_GAP, HANDLE_W, portSize } from '../lib/layout';
 import { groupColumns, groupsOn, portCell } from '../lib/project';
-import { PORT_TYPE_LABELS } from '../lib/templates';
+import { PORT_TYPE_LABELS, textOn } from '../lib/templates';
 import type { Cable, Device, Face } from '../lib/types';
 import { useStore } from '../store';
 import { trailingDigits } from '../lib/validate';
@@ -131,7 +131,7 @@ export const DeviceView = memo(function DeviceView({ device, face, box, cables, 
                     style={{
                       gridRow: row + 1,
                       gridColumn: col + 1,
-                      ...(cable ? { ['--cable' as string]: cable.color } : null),
+                      ...(cable ? { ['--cable' as string]: cable.color, ['--cable-ink' as string]: textOn(cable.color) } : null),
                     }}
                     title={`${label} · ${PORT_TYPE_LABELS[group.type]}${cable ? `\n${cable.label} → ${peer ?? ''}` : '\nDrag to another port to patch'}`}
                     onPointerDown={(e) => onPortDown(e, port.id)}

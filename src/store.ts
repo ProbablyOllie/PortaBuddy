@@ -39,6 +39,11 @@ interface State {
   /** Ask before closing the tab when there are changes not saved to a file. */
   warnOnClose: boolean;
   projectsOpen: boolean;
+  helpOpen: boolean;
+  /** The getting-started card on the overview has been closed. */
+  introDismissed: boolean;
+  /** Device library categories that are folded away. */
+  collapsedCats: string[];
   past: Project[];
   future: Project[];
   selection: Selection;
@@ -98,6 +103,9 @@ interface State {
   markFileSaved: () => void;
   setWarnOnClose: (on: boolean) => void;
   showProjects: (open: boolean) => void;
+  showHelp: (open: boolean) => void;
+  dismissIntro: () => void;
+  toggleCat: (cat: string) => void;
 
   addRack: () => void;
   updateRack: (id: string, patch: Partial<Omit<Rack, 'id'>>) => void;
@@ -206,6 +214,9 @@ export const useStore = create<State>()(
         storageError: false,
         warnOnClose: library.warnOnClose(),
         projectsOpen: false,
+        helpOpen: false,
+        introDismissed: false,
+        collapsedCats: [],
         past: [],
         future: [],
         selection: null,
@@ -305,6 +316,13 @@ export const useStore = create<State>()(
           set({ warnOnClose });
         },
         showProjects: (projectsOpen) => set({ projectsOpen }),
+        showHelp: (helpOpen) => set({ helpOpen }),
+        dismissIntro: () => set({ introDismissed: true }),
+        toggleCat: (cat) => {
+          // Comes from browser storage, so don't assume its shape.
+          const cur = Array.isArray(get().collapsedCats) ? get().collapsedCats : [];
+          set({ collapsedCats: cur.includes(cat) ? cur.filter((c) => c !== cat) : [...cur, cat] });
+        },
 
         addRack: () => {
           const id = uid('rack');
@@ -550,6 +568,8 @@ export const useStore = create<State>()(
         libraryOpen: s.libraryOpen,
         inspectorOpen: s.inspectorOpen,
         layoutPref: s.layoutPref,
+        introDismissed: s.introDismissed,
+        collapsedCats: s.collapsedCats,
       }),
     },
   ),
