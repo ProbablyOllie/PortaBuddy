@@ -320,7 +320,7 @@ export function Canvas() {
             + Add rack
           </button>
         </div>
-        <svg className={`cable-layer mode-${mode}${wiring ? ' wiring' : ''}`} width={size.w} height={size.h}>
+        <svg className={`cable-layer mode-${mode}${wiring ? ' wiring' : ''}${selectedCableId ? ' has-sel' : ''}`} width={size.w} height={size.h}>
           {ordered.map((c) => {
             if (wiring?.moved && wiring.cableId === c.id) return null;
             const pa = positions.get(c.a.portId);
@@ -356,11 +356,11 @@ export function Canvas() {
                 <path className="cable-hit" d={d} />
                 <path className="cable-outline" d={d} />
                 <path className="cable-line" d={d} stroke={c.color} />
-                <circle className="cable-end" cx={a.x} cy={a.y} r={3} fill={c.color} />
+                <circle className="cable-end" cx={a.x} cy={a.y} r={2.5} fill={c.color} />
                 {stub ? (
                   <circle className="cable-stub-end" cx={b.x} cy={b.y} r={3.5} stroke={c.color} />
                 ) : (
-                  <circle className="cable-end" cx={b.x} cy={b.y} r={3} fill={c.color} />
+                  <circle className="cable-end" cx={b.x} cy={b.y} r={2.5} fill={c.color} />
                 )}
                 {showLabel && !stub ? <CableLabel at={cableMidpoint(a, b)} text={c.label} color={c.color} /> : null}
               </g>
