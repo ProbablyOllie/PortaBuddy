@@ -143,10 +143,20 @@ function RackFace({ rack, face, layout, cables, peers }: FaceProps) {
   };
 
   const units = Array.from({ length: rack.heightU }, (_, i) => rack.heightU - i);
+  // Units with something mounted on either side: their numbers are drawn brighter than empty ones.
+  const usedU = new Set<number>();
+  for (const d of project.devices) {
+    if (d.rackId !== rack.id) continue;
+    for (let u = d.positionU; u < d.positionU + d.heightU; u++) usedU.add(u);
+  }
   const rail = (
     <div className="rail">
       {units.map((u) => (
-        <div key={u} className={`rail-u${layout.heights[u] < 20 ? ' short' : ''}`} style={{ height: layout.heights[u] }}>
+        <div
+          key={u}
+          className={`rail-u${layout.heights[u] < 20 ? ' short' : ''}${u % 5 === 0 ? ' major' : ''}${usedU.has(u) ? ' used' : ''}`}
+          style={{ height: layout.heights[u] }}
+        >
           {u}
         </div>
       ))}
