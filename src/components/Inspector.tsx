@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { cableIndex, describePort, findPort, freePositions, groupRackFace, spanOf, uRange } from '../lib/project';
 import { CABLE_COLORS, CABLE_TYPES, PORT_TYPE_LABELS } from '../lib/templates';
-import type { CableType, Face, PortRef } from '../lib/types';
+import type { CableType, Face, PortRef, Project } from '../lib/types';
 import { useStore } from '../store';
+import { CloseIcon, CollapseRightIcon } from './icons';
 
 export function Inspector() {
   const [tab, setTab] = useState<'props' | 'cables'>('props');
@@ -12,13 +13,14 @@ export function Inspector() {
     <aside className="inspector">
       <div className="tabs">
         <button className="collapse-btn" title="Hide panel (])" onClick={() => togglePanel('inspector')}>
-          »
+          <CollapseRightIcon />
         </button>
         <button className={tab === 'props' ? 'on' : ''} onClick={() => setTab('props')}>
           Properties
         </button>
         <button className={tab === 'cables' ? 'on' : ''} onClick={() => setTab('cables')}>
-          Cables ({count})
+          Cables
+          <span className="tab-count">{count}</span>
         </button>
       </div>
       <div className="inspector-body">{tab === 'props' ? <Properties /> : <CableList onPick={() => setTab('props')} />}</div>
@@ -36,53 +38,112 @@ function Properties() {
 
 function Overview() {
   const project = useStore((s) => s.project);
+  const introDismissed = useStore((s) => s.introDismissed);
+  const { select, showHelp, dismissIntro } = useStore.getState();
   const ports = project.devices.reduce((n, d) => n + d.portGroups.reduce((m, g) => m + g.ports.length, 0), 0);
+  const patched = project.cables.length * 2;
+  const stats: [number, string][] = [
+    [project.racks.length, 'Racks'],
+    [project.devices.length, 'Devices'],
+    [ports, 'Ports'],
+    [project.cables.length, 'Cables'],
+  ];
   return (
     <div className="props">
       <h3>{project.name}</h3>
-      <dl className="stats">
-        <dt>Racks</dt>
-        <dd>{project.racks.length}</dd>
-        <dt>Devices</dt>
-        <dd>{project.devices.length}</dd>
-        <dt>Ports</dt>
-        <dd>{ports}</dd>
-        <dt>Cables</dt>
-        <dd>{project.cables.length}</dd>
-      </dl>
-      <h4>How to use</h4>
-      <ol className="help">
-        <li>Drag devices from the library on the left into a rack. Drag a device by its label to move it.</li>
-        <li>Press on a port and drag to another port to run a cable between them — across racks too. Or tap a free port, then tap the other port.</li>
-        <li>
-          Patching a whole panel? Use <b>Bulk patch</b> to connect a run of ports (e.g. 1–24 to Gi1–24) in one go.
-        </li>
-        <li>Drag the end of an existing cable to a different port to re-patch it.</li>
-        <li>
-          Switch between <b>Front</b>, <b>Rear</b> and <b>Both</b> views with the Side buttons below the racks. Server NICs and power supplies are on the rear;
-          use <b>Both</b> to run cables from front to rear.
-        </li>
-        <li>Click a cable, device or rack header to edit its details here.</li>
-        <li>
-          Busy rack? <b>Cables: Focus</b> (below the racks) shows only the cables of the device you select or point at. Auto switches to
-          it once there are more than 30 cables.
-        </li>
-        <li>
-          Already have a spreadsheet? <b>Projects → Import spreadsheet…</b> builds the racks, devices and cables from it.
-        </li>
-        <li>
-          Use <b>Export</b> to download an Excel workbook with the cable schedule, port map, device list and rack elevations.
-        </li>
-      </ol>
+      <div className="stat-grid">
+        {stats.map(([n, label]) => (
+          <div key={label} className="stat">
+            <span className="stat-val">{n}</span>
+            <span className="stat-label">{label}</span>
+          </div>
+        ))}
+      </div>
+
+      {project.racks.length ? (
+        <>
+          <h4>Space used</h4>
+          <ul className="usage-list">
+            {project.racks.map((r) => {
+              const used = usedUnits(project, r.id);
+              return (
+                <li key={r.id}>
+                  <button className="usage-row" title="Show this rack's details" onClick={() => select({ kind: 'rack', id: r.id })}>
+                    <span className="usage-name">{r.name}</span>
+                    <span className="usage-num">
+                      {used}/{r.heightU}U
+                    </span>
+                    <Bar value={used} max={r.heightU} />
+                  </button>
+                </li>
+              );
+            })}
+            {ports ? (
+              <li>
+                <div className="usage-row">
+                  <span className="usage-name">Ports patched</span>
+                  <span className="usage-num">
+                    {patched}/{ports}
+                  </span>
+                  <Bar value={patched} max={ports} />
+                </div>
+              </li>
+            ) : null}
+          </ul>
+        </>
+      ) : null}
+
+      {introDismissed ? null : (
+        <div className="intro">
+          <div className="intro-head">
+            <h4>Getting started</h4>
+            <button className="icon-btn" aria-label="Dismiss getting started" title="Dismiss" onClick={dismissIntro}>
+              <CloseIcon size={14} />
+            </button>
+          </div>
+          <ol>
+            <li>Drag a device from the library into a rack.</li>
+            <li>Drag from one port to another to run a cable.</li>
+            <li>
+              Use <b>Export</b> for a spreadsheet or PDF of the result.
+            </li>
+          </ol>
+          <button className="link" onClick={() => showHelp(true)}>
+            All tips and shortcuts
+          </button>
+        </div>
+      )}
       <p className="hint">
-        Your work is saved automatically in this browser, with earlier versions under <b>Projects</b>. Use <b>Save</b> to download a backup
-        file you can share or re-open elsewhere — browser storage can be cleared.
-      </p>
-      <p className="hint">
-        Shortcuts: Delete removes the selection, Ctrl+Z / Ctrl+Shift+Z undo and redo, Esc cancels, / or Ctrl+K searches, [ and ] hide or show the side panels. Double-click a device label to rename it.
+        Saved automatically in this browser. Use <b>Save</b> to keep a backup file.
+        {introDismissed ? (
+          <>
+            {' '}
+            <button className="link" onClick={() => showHelp(true)}>
+              Tips and shortcuts
+            </button>
+          </>
+        ) : null}
       </p>
     </div>
   );
+}
+
+function Bar({ value, max }: { value: number; max: number }) {
+  return (
+    <span className="usage-bar">
+      <span style={{ width: `${max > 0 ? Math.min(100, (value / max) * 100) : 0}%` }} />
+    </span>
+  );
+}
+
+/** Rack units with a device in them, counting a U shared by front and rear half-depth devices once. */
+function usedUnits(project: Project, rackId: string): number {
+  const taken = new Set<number>();
+  for (const d of project.devices) {
+    if (d.rackId !== rackId) continue;
+    for (let u = d.positionU; u < d.positionU + d.heightU; u++) taken.add(u);
+  }
+  return taken.size;
 }
 
 function RackProps({ id }: { id: string }) {
@@ -181,7 +242,7 @@ function DeviceProps({ id }: { id: string }) {
       <div className="kind">Device</div>
       <label>
         Name / hostname
-        <input value={device.name} onChange={(e) => updateDevice(id, { name: e.target.value })} />
+        <input className="mono" value={device.name} onChange={(e) => updateDevice(id, { name: e.target.value })} />
       </label>
       <p className="hint">
         {device.model} · {rack?.name} · U{b === t ? b : `${b}–${t}`} · {used}/{allPorts.length} ports used
@@ -261,6 +322,9 @@ function DeviceProps({ id }: { id: string }) {
                 {g.ports.map((p) => {
                   const cable = index.get(p.id);
                   const other = cable ? (cable.a.portId === p.id ? cable.b : cable.a) : null;
+                  // "Rack A / U41 core-sw1" and " / Gi12": the port stays visible when the row is narrow.
+                  const where = other ? describePort(project, other) : '';
+                  const cut = where.lastIndexOf(' / ');
                   return (
                     <tr key={p.id}>
                       <td>
@@ -268,9 +332,15 @@ function DeviceProps({ id }: { id: string }) {
                       </td>
                       <td>
                         {cable && other ? (
-                          <button className="link" onClick={() => select({ kind: 'cable', id: cable.id })}>
+                          <button
+                            className="link"
+                            title={`${cable.label} → ${where}`}
+                            onClick={() => select({ kind: 'cable', id: cable.id })}
+                          >
                             <span className="dot" style={{ background: cable.color }} />
-                            {cable.label} → {describePort(project, other)}
+                            <span className="peer-id">{cable.label}</span>
+                            <span className="peer-where">→ {cut < 0 ? where : where.slice(0, cut)}</span>
+                            {cut < 0 ? null : <span className="peer-port">{where.slice(cut + 1)}</span>}
                           </button>
                         ) : (
                           <span className="muted">free</span>
@@ -321,7 +391,7 @@ function CableProps({ id }: { id: string }) {
       <div className="kind">Cable</div>
       <label>
         Cable ID / label
-        <input value={cable.label} onChange={(e) => updateCable(id, { label: e.target.value })} />
+        <input className="mono" value={cable.label} onChange={(e) => updateCable(id, { label: e.target.value })} />
       </label>
       <Endpoint label="End A" refr={cable.a} cableId={id} />
       <Endpoint label="End B" refr={cable.b} cableId={id} />

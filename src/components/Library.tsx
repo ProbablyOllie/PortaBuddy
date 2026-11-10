@@ -4,7 +4,9 @@ import { firstFreePosition } from '../lib/project';
 import { CATEGORY_LABELS } from '../lib/templates';
 import type { DeviceCategory, DeviceTemplate } from '../lib/types';
 import { allTemplates, useStore } from '../store';
+import { ChevronRightIcon, CloseIcon, CollapseLeftIcon, EditIcon, PlusIcon } from './icons';
 import { TemplateEditor } from './TemplateEditor';
+import { TemplateGlyph } from './TemplateGlyph';
 
 function portCount(t: DeviceTemplate) {
   return t.portGroups.reduce((n, g) => n + g.count, 0);
@@ -20,6 +22,8 @@ export function Library() {
   const togglePanel = useStore((s) => s.togglePanel);
   const armedTemplate = useStore((s) => (s.armed?.kind === 'place' ? s.armed.templateId : null));
   const arm = useStore((s) => s.arm);
+  const collapsedCats = useStore((s) => s.collapsedCats);
+  const toggleCat = useStore((s) => s.toggleCat);
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<DeviceTemplate | 'new' | null>(null);
 
@@ -51,16 +55,25 @@ export function Library() {
       <div className="panel-head">
         <div className="panel-title">Device library</div>
         <button className="collapse-btn" title="Hide panel ([)" onClick={() => togglePanel('library')}>
-          «
+          <CollapseLeftIcon />
         </button>
       </div>
       <input className="search" placeholder="Search devices…" value={query} onChange={(e) => setQuery(e.target.value)} />
       <p className="hint">Drag a device into a rack, or tap it and then tap a spot in a rack. Double-click drops it in the next free slot.</p>
       <div className="library-list">
-        {groups.map(([cat, templates]) => (
+        {groups.map(([cat, templates]) => {
+          // Searching shows every match, folded or not.
+          const open = !!query.trim() || !(Array.isArray(collapsedCats) && collapsedCats.includes(cat));
+          return (
           <section key={cat}>
-            <h4>{cat === 'custom' ? 'My devices' : CATEGORY_LABELS[cat as DeviceCategory]}</h4>
-            {templates.map((t) => (
+            <h4>
+              <button className="lib-cat" aria-expanded={open} onClick={() => toggleCat(cat)}>
+                <ChevronRightIcon size={12} />
+                {cat === 'custom' ? 'My devices' : CATEGORY_LABELS[cat as DeviceCategory]}
+                <span className="lib-count">{templates.length}</span>
+              </button>
+            </h4>
+            {(open ? templates : []).map((t) => (
               <div
                 key={t.id}
                 className={`template cat-${t.category}${armedTemplate === t.id ? ' armed' : ''}`}
@@ -77,7 +90,7 @@ export function Library() {
                 onKeyDown={(e) => e.key === 'Enter' && quickAdd(t)}
                 title="Drag into a rack"
               >
-                <div className="template-swatch" style={{ height: Math.min(4, t.heightU) * 7 }} />
+                <TemplateGlyph template={t} />
                 <div className="template-text">
                   <div className="template-name">{t.name}</div>
                   <div className="template-meta">
@@ -89,32 +102,36 @@ export function Library() {
                     <button
                       className="icon-btn"
                       title="Edit"
+                      aria-label={`Edit ${t.name}`}
                       onClick={(e) => {
                         e.stopPropagation();
                         setEditing(t);
                       }}
                     >
-                      ✎
+                      <EditIcon size={14} />
                     </button>
                     <button
                       className="icon-btn"
                       title="Delete"
+                      aria-label={`Delete ${t.name}`}
                       onClick={(e) => {
                         e.stopPropagation();
                         if (confirm(`Delete device type "${t.name}"? Devices already placed are kept.`)) removeTemplate(t.id);
                       }}
                     >
-                      ×
+                      <CloseIcon size={14} />
                     </button>
                   </div>
                 ) : null}
               </div>
             ))}
           </section>
-        ))}
+          );
+        })}
       </div>
       <button className="btn wide" onClick={() => setEditing('new')}>
-        + Custom device type
+        <PlusIcon size={14} />
+        Custom device type
       </button>
       {editing ? <TemplateEditor initial={editing === 'new' ? null : editing} onClose={() => setEditing(null)} /> : null}
     </aside>

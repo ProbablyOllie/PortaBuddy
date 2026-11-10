@@ -387,7 +387,8 @@ const CABLE_MODE_HELP: Record<CableMode, string> = {
 
 /** A cable's label on a small chip in its own colour, at the bottom of its curve. */
 function CableLabel({ at, text, color }: { at: Pt; text: string; color: string }) {
-  const w = Math.max(24, text.length * 6.2 + 8);
+  // Monospace at 10px: each character is 6px wide.
+  const w = Math.max(24, text.length * 6 + 10);
   return (
     <g className="cable-label" transform={`translate(${at.x},${at.y})`}>
       <rect x={-w / 2} y={-8} width={w} height={16} rx={4} fill={color} />

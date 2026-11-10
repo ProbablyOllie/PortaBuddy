@@ -124,6 +124,17 @@ known limitations.
 | [ / ] | Hide or show the device library / properties panel |
 | / or Ctrl/⌘ + K | Search |
 
+The **?** button in the toolbar lists these along with tips for every feature.
+
+## Design
+
+Styling lives in `src/styles.css` (desktop) and `src/mobile/mobile.css`, built on a small set of
+tokens at the top of `styles.css`: five text sizes, three corner radii, two shadows, one neutral
+ramp and one accent. Inter is used for the interface and JetBrains Mono for hostnames, port
+numbers, U positions and cable IDs; both are bundled with the site (no external font hosts).
+Amber is reserved for warnings. Animations are switched off for people who ask their system for
+reduced motion.
+
 ## Project layout
 
 ```
